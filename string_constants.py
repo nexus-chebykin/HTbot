@@ -1,6 +1,7 @@
 # coding=UTF-8
 from telethon import TelegramClient
 from classesnfunctions import *
+from passwords import *
 
 
 home_task_storage = 'databases/ht.bn'
@@ -16,9 +17,7 @@ wrong_subject = 'Нет такого предмета'
 help_str = 'Ты можешь загрузить (/addtask) в меня дз и выгрузить (/gettask). А еще было бы неплохо иногда загружать решения (/addsol))'
 abbvhelp = 'Информатика - inf, Геометрия - geo... (для умственно отсталых - первые 3 буквы в нглийском названии предмета) Английский у Сметаны Барбарисовны - eng1, у *коронавирусной* - eng2'
 sure_to_change = 'Точно хочешь его изменить? (/replace, или /append, или /exit для выхода без изменений)'
-bot_token = '1354566492:AAEetzZdom2JyyUo2ZbxDzACM9LtXFWTEIM'
-api_id = 1418890
-api_hash = '04d31e743a08a1cd7e86f180818c6595'
+
 normal = '0123456789абвгдеёжзийклмнопрстуфхцчшщъыьэюя '
 download_types = ['Аудио', 'Видео']
 want_download = ["Скачать!", "Забей"]
