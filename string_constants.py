@@ -23,11 +23,15 @@ download_types = ['Аудио', 'Видео']
 want_download = ["Скачать!", "Забей"]
 boss = 242023883
 
-client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
-home_tasks = readfile(home_task_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> задание (MsgGroup)
-solutions = readfile(solution_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> решение (MsgGroup)
-id_to_ind, max_ind = readfile(id_to_ind_storage, False) # Словарь: tg_id -> индекс в массиве студентов; Количество пользователей
-students = readfile(students_storage, True) # Массив пользователей (Students)
-pending_review = set()
-accepted = set()
-current_review = 1
+try:
+	client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
+	print('ok')
+	home_tasks = readfile(home_task_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> задание (MsgGroup)
+	solutions = readfile(solution_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> решение (MsgGroup)
+	id_to_ind, max_ind = readfile(id_to_ind_storage, False) # Словарь: tg_id -> индекс в массиве студентов; Количество пользователей
+	students = readfile(students_storage, True) # Массив пользователей (Students)
+	pending_review = set()
+	accepted = set()
+	current_review = 1
+except Exception as ss:
+	print(ss)

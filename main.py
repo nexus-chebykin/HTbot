@@ -257,10 +257,10 @@ async def addsol(event):
 #         conv.send_message()
 
 
-    async def main():
-        print("done")
+async def main():
+    print("done")
 
 
-    with client:
-        client.loop.run_until_complete(main())
-        client.loop.run_forever()
+with client:
+    client.loop.run_until_complete(main())
+    client.loop.run_forever()
