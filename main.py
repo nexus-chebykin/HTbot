@@ -22,7 +22,7 @@ def unbreakable_async_decorator(func):
 
 @unbreakable_async_decorator
 async def register_student(conv, sender):
-    global current_review, max_ind_students
+    global current_review, max_ind
     s = await client.get_entity(sender)
     print(s)
     await conv.send_message(student_sign_in_guide)
@@ -50,12 +50,12 @@ async def register_student(conv, sender):
         else:
             await conv.send_message('Отклонено, попробуй снова')
             return 0
-        id_to_ind[sender] = (False, max_ind_students)
-        max_ind_students += 1
-        students.append(Student(sender, msg[0], msg[1], msg[2].upper()))
-        print(*students)
-        writefile(id_to_ind_storage, id_to_ind, max_ind_students)
-        writefile(students_storage, students)
+        id_to_ind[sender] = max_ind
+        max_ind += 1
+        users.append(User.Student(sender, msg[0], msg[1], msg[2].upper()))
+        print(*users)
+        writefile(id_to_ind_storage, id_to_ind, max_ind)
+        writefile(users_storage, users)
         await conv.send_message(success_sign_in)
     except Exception as s:
         print(s)
@@ -64,7 +64,7 @@ async def register_student(conv, sender):
 
 @unbreakable_async_decorator
 async def register_teacher(conv, sender):
-    global max_ind_teachers
+    global max_ind, current_review
     s = await client.get_entity(sender)
     print(s)
     await conv.send_message(teacher_sign_in_guide)
@@ -86,26 +86,27 @@ async def register_teacher(conv, sender):
             p = await conv.get_response()
             if p.message == '/end':
                 break
-        cur = max_ind_teachers
-        form = str(cur) + '\n' + '\n'.join(msg) + '\n' + \
+        form = str(current_review) + '\n' + '\n'.join(msg) + '\n' + \
                s.first_name + '\n' + '\n'.join(subjects) + '\n' + '\n'.join(classes)
         await client.send_message(boss, form)
         await conv.send_message('Ваша анкета принята на обработку. Ждите.')
-        pending_review_teachers.add(cur)
-        while cur in pending_review_teachers:
+        pending_review.add(current_review)
+        cur = current_review
+        current_review += 1
+        while cur in pending_review:
             await asyncio.sleep(15)
-        if cur in accepted_teachers:
-            accepted_teachers.discard(cur)
+        if cur in accepted:
+            accepted.discard(cur)
             await conv.send_message('Принято')
         else:
-            await conv.send_message('Отклонено, попробуйте снова')
+            await conv.send_message('Отклонено, попробуй снова')
             return 0
-        id_to_ind[sender] = (True, max_ind_teachers)
-        max_ind_teachers += 1
-        teachers.append(Teacher(sender, msg[0], msg[1], classes, subjects))
-        print(*teachers)
-        writefile(id_to_ind_storage, id_to_ind, max_ind_students, max_ind_teachers)
-        writefile(teachers_storage, teachers)
+        id_to_ind[sender] = max_ind
+        max_ind += 1
+        users.append(User.Teacher(sender, msg[0], msg[1], classes, subjects))
+        print(*users)
+        writefile(id_to_ind_storage, id_to_ind, max_ind)
+        writefile(users_storage, users)
         await conv.send_message(success_sign_in)
     except Exception as s:
         print(s)
@@ -140,29 +141,6 @@ async def new_user(event):
                 await register_teacher(conv, sender)
 
 
-@client.on(events.NewMessage(pattern='/acceptte', chats=boss))
-async def acc(event):
-    async with client.conversation(boss, timeout=None, exclusive=False) as conv:
-        await conv.send_message('Какую заявку?')
-        resp = await conv.get_response()
-        # print(int(resp.text))
-        accepted_teachers.add(int(resp.text))
-        pending_review_teachers.discard(int(resp.text))
-        await conv.send_message('OK')
-        raise events.StopPropagation
-
-
-@client.on(events.NewMessage(pattern='/declinete', chats=boss))
-async def decc(event):
-    async with client.conversation(boss, timeout=None, exclusive=False) as conv:
-        await conv.send_message('Какую заявку?')
-        resp = await conv.get_response()
-        # print(int(resp.text))
-        pending_review_teachers.discard(int(resp.text))
-        await conv.send_message('OK')
-        raise events.StopPropagation
-
-
 @client.on(events.NewMessage(pattern='/accept', chats=boss))
 @unbreakable_async_decorator
 async def ac(event):
@@ -187,10 +165,12 @@ async def dec(event):
 
 
 def is_student(event):
-    return event.message.from_id in id_to_ind and not id_to_ind[event.message.from_id][0]
+    print(event)
+    print(id_to_ind[event.message.from_id])
+    return event.message.from_id in id_to_ind and isinstance(users[id_to_ind[event.message.from_id]], User.Student)
 
 def is_teacher(event):
-    return (event.message.from_id in id_to_ind and students[id_to_ind[event.message.from_id]][0]) or event.message.from_id == boss
+    return (event.message.from_id in id_to_ind and isinstance(users[id_to_ind[event.message.from_id]], User.Teacher)) or event.message.from_id == boss
 
 @client.on(events.NewMessage(pattern='/abbvhelp', func=is_student))
 @unbreakable_async_decorator
@@ -210,7 +190,7 @@ async def show_task(parr, subject, conv):
         for el in home_tasks[parr][subject].messages:
             await conv.send_message(message=el[0], file=el[1])
         await conv.send_message("Последний раз оно было изменено " +
-                                students[home_tasks[parr][subject].student[1]].name_by + ' ' + str(home_tasks[parr][subject].timestamp)[:-10])
+                                users[home_tasks[parr][subject].student].name_by + ' ' + str(home_tasks[parr][subject].timestamp)[:-10])
     else:
         await conv.send_message('*Пусто*')
 
@@ -221,7 +201,7 @@ async def show_sol(parr, subject, conv):
         for el in solutions[parr][subject].messages:
             await conv.send_message(message=el[0], file=el[1])
         await conv.send_message("Последний раз оно было изменено " +
-                                students[solutions[parr][subject].student[1]].name_by + ' ' + str(solutions[parr][subject].timestamp)[:-10])
+                                users[solutions[parr][subject].student].name_by + ' ' + str(solutions[parr][subject].timestamp)[:-10])
     else:
         await conv.send_message('*Пусто*')
 
@@ -238,7 +218,7 @@ async def get_subject(parr, conv):
 async def gettask(event):
     sender = event.message.from_id
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-        parr = students[id_to_ind[sender][1]].par
+        parr = users[id_to_ind[sender]].par
         subject = await get_subject(parr, conv)
         if not subject:
             return 0
@@ -262,7 +242,7 @@ async def get_msg_group(conv):
 @unbreakable_async_decorator
 async def addtask(event):
     sender = event.message.from_id
-    parr = students[id_to_ind[sender][1]].par
+    parr = user[id_to_ind[sender][1]].par
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         subject = await get_subject(parr, conv)
         if not subject:
@@ -296,7 +276,7 @@ async def addtask(event):
 async def getsol(event):
     sender = event.message.from_id
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-        parr = students[id_to_ind[sender][1]].par
+        parr = user[id_to_ind[sender][1]].par
         subject = await get_subject(parr, conv)
         if not subject:
             return 0
@@ -307,7 +287,7 @@ async def getsol(event):
 @unbreakable_async_decorator
 async def addsol(event):
     sender = event.message.from_id
-    parr = students[id_to_ind[sender][1]].par
+    parr = user[id_to_ind[sender][1]].par
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         subject = await get_subject(parr, conv)
         if not subject:

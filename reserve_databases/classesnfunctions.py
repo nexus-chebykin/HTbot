@@ -27,10 +27,19 @@ class MsgGroup():
 
 class Teacher():
     tg_id = 0
-    par = []
     name = ''
     name_by = ''
     subjects = []
+    classes = []
+
+
+    def __init__(self, tg_id, name, name_by, classes=[], subjects=[]):
+        self.tg_id = tg_id
+        self.name = name
+        self.name_by = name_by
+        self.classes = classes[:]
+        self.subjects = subjects[:]
+
 
 class Test():
     quests = []

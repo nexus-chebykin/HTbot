@@ -1,45 +1,41 @@
 from pickle import load, dump
 import datetime
 from telethon import Button
-class Student():
-    tg_id = 0
-    par = '11В'
-    name = ''
-    name_by = ''
-
-    def __init__(self, tg_id, name, name_by, par='11В'):
-        self.tg_id = tg_id
-        self.name = name
-        self.name_by = name_by
-        self.par = par
-
-    def __str__(self):
-        return "Student(tg_id = {}, name = {}, name_by = {}, par = {})".format(self.tg_id, self.name, self.name_by, self.par)
 
 
 class MsgGroup():
     messages = []
 
-    def __init__(self, msg=[], student=0, timestamp=datetime.datetime.now()):
-        self.messages = msg[:]
+    def __init__(self, msg=(), student=0, timestamp=datetime.datetime.now()):
+        self.messages = list(msg[:])
         self.student = student
         self.timestamp = timestamp
 
-class Teacher():
+class User():
     tg_id = 0
     name = ''
     name_by = ''
-    subjects = []
-    classes = []
+
+    class Student():
+        parr = ''
+
+        def __init__(self, tg_id, name, name_by, par='11В'):
+            self.tg_id = tg_id
+            self.name = name
+            self.name_by = name_by
+            self.par = par
 
 
-    def __init__(self, tg_id, name, name_by, classes=[], subjects=[]):
-        self.tg_id = tg_id
-        self.name = name
-        self.name_by = name_by
-        self.classes = classes[:]
-        self.subjects = subjects[:]
+    class Teacher():
+        classes = []
+        subjects = []
 
+        def __init__(self, tg_id, name, name_by, classes=(), subjects=()):
+            self.tg_id = tg_id
+            self.name = name
+            self.name_by = name_by
+            self.classes = list(classes[:])
+            self.subjects = list(subjects[:])
 
 class Test():
     quests = []
@@ -58,7 +54,6 @@ class Quest():
         self.questions = opts[:]
         self.buttons = [Button.text(str(i)) for i in range(len(opts))]
         self.correct_ans = corr
-
 
     async def get_ans(self, conv):
         await conv.send_message('В каком из слов неправильно поставлено ударение:\n' + '\n'.join(self.questions))
