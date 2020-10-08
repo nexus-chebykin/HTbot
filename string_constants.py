@@ -22,8 +22,8 @@ sure_to_change = 'Точно хочешь его изменить? (/replace, и
 normal = '0123456789абвгдеёжзийклмнопрстуфхцчшщъыьэюя '
 boss = 242023883
 
-# client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
-client = TelegramClient('test_bot', api_id, api_hash).start(bot_token=test_bot_token)
+client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
+# client = TelegramClient('test_bot', api_id, api_hash).start(bot_token=test_bot_token)
 home_tasks = readfile(home_task_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> задание (MsgGroup)
 solutions = readfile(solution_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> решение (MsgGroup)
 id_to_ind, max_ind = readfile(id_to_ind_storage, False) # Словарь: tg_id -> индекс в массиве студентов; Количество пользователей

@@ -165,8 +165,6 @@ async def dec(event):
 
 
 def is_student(event):
-    print(event)
-    print(id_to_ind[event.message.from_id])
     return event.message.from_id in id_to_ind and isinstance(users[id_to_ind[event.message.from_id]], User.Student)
 
 def is_teacher(event):
@@ -200,6 +198,7 @@ async def show_sol(parr, subject, conv):
     if isinstance(solutions[parr][subject], MsgGroup) and solutions[parr][subject].messages:
         for el in solutions[parr][subject].messages:
             await conv.send_message(message=el[0], file=el[1])
+        print(solutions[parr][subject].student)
         await conv.send_message("Последний раз оно было изменено " +
                                 users[solutions[parr][subject].student].name_by + ' ' + str(solutions[parr][subject].timestamp)[:-10])
     else:
@@ -242,7 +241,7 @@ async def get_msg_group(conv):
 @unbreakable_async_decorator
 async def addtask(event):
     sender = event.message.from_id
-    parr = user[id_to_ind[sender][1]].par
+    parr = users[id_to_ind[sender]].par
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         subject = await get_subject(parr, conv)
         if not subject:
@@ -276,7 +275,7 @@ async def addtask(event):
 async def getsol(event):
     sender = event.message.from_id
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-        parr = user[id_to_ind[sender][1]].par
+        parr = users[id_to_ind[sender]].par
         subject = await get_subject(parr, conv)
         if not subject:
             return 0
@@ -287,7 +286,7 @@ async def getsol(event):
 @unbreakable_async_decorator
 async def addsol(event):
     sender = event.message.from_id
-    parr = user[id_to_ind[sender][1]].par
+    parr = users[id_to_ind[sender]].par
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         subject = await get_subject(parr, conv)
         if not subject:
