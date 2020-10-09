@@ -4,12 +4,19 @@ from telethon import Button
 
 
 class MsgGroup():
-    messages = []
 
     def __init__(self, msg=(), student=0, timestamp=datetime.datetime.now()):
         self.messages = list(msg[:])
         self.student = student
         self.timestamp = timestamp
+
+class Note():
+    def __init__(self, header = '', msg=(), student=0, timestamp=datetime.datetime.now()):
+        self.header = header
+        self.messages = list(msg[:])
+        self.student = student
+        self.timestamp = timestamp
+
 
 class User():
     tg_id = 0

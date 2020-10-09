@@ -116,12 +116,15 @@ async def register_teacher(conv, sender):
 @unbreakable_async_decorator
 async def send_inline_message(conv, message, buttons):
     buttons = [Button.inline(el) for el in buttons]
-    le = len(buttons) // 3 + (len(buttons) % 3 != 0)
-    real_buttons = [buttons[i * le: (i + 1) * le] for i in range(3)]
+    if len(buttons) > 3:
+        le = len(buttons) // 3 + (len(buttons) % 3 != 0)
+        real_buttons = [buttons[i * le: (i + 1) * le] for i in range(3)]
+    else:
+        real_buttons = buttons
     markup = client.build_reply_markup(real_buttons)
     await conv.send_message(message, buttons=markup)
     clicked_button = await conv.wait_event(button_event(conv.chat_id))
-    subject = clicked_button.query.data.decode('UTF-8').lower()
+    subject = clicked_button.query.data.decode('UTF-8')
     await clicked_button.edit('Ты выбрал {}'.format(subject))
     return subject
 
@@ -181,6 +184,11 @@ async def help_abbv(event):
 async def helper(event):
     await client.send_message(event.message.from_id, help_str)
 
+@client.on(events.NewMessage(pattern='/help', func=is_teacher))
+@unbreakable_async_decorator
+async def helper_teacher(event):
+    await client.send_message(event.message.from_id, help_str_teacher)
+
 @unbreakable_async_decorator
 async def show_task(parr, subject, conv):
     await conv.send_message('На данный момент дз выглядит так:')
@@ -224,8 +232,8 @@ async def gettask(event):
         await show_task(parr, subject, conv)
 
 @unbreakable_async_decorator
-async def get_msg_group(conv):
-    await conv.send_message("Ладно. Скидывай мне сообщения. После последнего напиши /end")
+async def get_msg_group(conv, msg):
+    await conv.send_message(msg)
     task_part = await conv.get_response()
     messages = []
     while task_part.message != '/end':
@@ -237,38 +245,66 @@ async def get_msg_group(conv):
     return messages
 
 
-@client.on(events.NewMessage(pattern='/addtask', func=is_student))
+@client.on(events.NewMessage(pattern='/addtask'))
 @unbreakable_async_decorator
 async def addtask(event):
     sender = event.message.from_id
-    parr = users[id_to_ind[sender]].par
-    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-        subject = await get_subject(parr, conv)
-        if not subject:
-            return 0
-        await show_task(parr, subject, conv)
-        await conv.send_message(sure_to_change)
-        ans = await conv.get_response()
-        if ans.message == '/replace' or ans.message == '/append':
-            messages = await get_msg_group(conv)
-            if messages == -1:
+    if is_student(event):
+        async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+            parr = users[id_to_ind[sender]].par
+            subject = await get_subject(parr, conv)
+            if not subject:
                 return 0
-            await conv.send_message("Понимаю. Сохранил. Спасибо папаша.")
-            if ans.message == '/replace':
-                home_tasks[parr][subject] = MsgGroup(
-                    messages, id_to_ind[sender], datetime.datetime.now())
-            else:
-                if isinstance(home_tasks[parr][subject], MsgGroup):
-                    home_tasks[parr][subject].messages.extend(messages)
-                    home_tasks[parr][subject].student = id_to_ind[sender]
-                    home_tasks[parr][subject].timestamp = datetime.datetime.now()
-                else:
+            await show_task(parr, subject, conv)
+            await conv.send_message(sure_to_change)
+            ans = await conv.get_response()
+            if ans.message == '/replace' or ans.message == '/append':
+                messages = await get_msg_group(conv, "Ладно. Скидывай мне сообщения. После последнего напиши /end")
+                if messages == -1:
+                    return 0
+                await conv.send_message("Понимаю. Сохранил. Спасибо папаша.")
+                if ans.message == '/replace':
                     home_tasks[parr][subject] = MsgGroup(
                         messages, id_to_ind[sender], datetime.datetime.now())
+                else:
+                    if isinstance(home_tasks[parr][subject], MsgGroup):
+                        home_tasks[parr][subject].messages.extend(messages)
+                        home_tasks[parr][subject].student = id_to_ind[sender]
+                        home_tasks[parr][subject].timestamp = datetime.datetime.now()
+                    else:
+                        home_tasks[parr][subject] = MsgGroup(
+                            messages, id_to_ind[sender], datetime.datetime.now())
+                writefile(home_task_storage, home_tasks)
+            else:
+                await conv.send_message("Ок :)")
+    elif is_teacher(event):
+        teacher = users[id_to_ind[sender]]
+        # teacher = User.Teacher(boss, 'Сеня', 'Сеней', ['11Б', "11В"], ['phy', 'ast'])
+        async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+            await conv.send_message('Каким классам хотите добавить домашнее задание?')
+            classes = []
+            while True:
+                classes.append(await send_inline_message(conv, 'Классы', teacher.classes))
+                if len(classes) < len(teacher.classes):
+                    ans = await send_inline_message(conv, 'Может, еще 1?', ['Да', 'Нет'])
+                    if len(ans) == 3:
+                        break
+                else:
+                    break
+            if len(teacher.subjects) > 1:
+                subj = await send_inline_message(conv, 'А по какому предмету?', teacher.subjects)
+            else:
+                subj = teacher.subjects[0]
+            t = '{}, ' * (len(classes) - 1)
+            await conv.send_message(('Вы собираетесь добавить ' + t + '{} дз по {}').format(*classes, subj))
+            messages = await get_msg_group(conv, "Скидывайте мне сообщения. После последнего напишите /end. Чтобы прервать без сохранения - /exit")
+            if messages != -1:
+                for parr in classes:
+                    home_tasks[parr][subj] = MsgGroup(
+                        messages, id_to_ind[sender], datetime.datetime.now()
+                    )
             writefile(home_task_storage, home_tasks)
-        else:
-            await conv.send_message("Ок :)")
-
+            await conv.send_message('Готово!')
 
 @client.on(events.NewMessage(pattern='/getsol', func=is_student))
 @unbreakable_async_decorator
@@ -281,39 +317,45 @@ async def getsol(event):
             return 0
         await show_sol(parr, subject, conv)
 
+# @client.on(events.NewMessage(pattern='/addnote'))
+# @unbreakable_async_decorator
+# async def addnote(event):
+#     user = users[]
 
-@client.on(events.NewMessage(pattern='/addsol', func=is_student))
+@client.on(events.NewMessage(pattern='/addsol'))
 @unbreakable_async_decorator
 async def addsol(event):
     sender = event.message.from_id
-    parr = users[id_to_ind[sender]].par
-    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-        subject = await get_subject(parr, conv)
-        if not subject:
-            return 0
-        await show_sol(parr, subject, conv)
-        await conv.send_message(sure_to_change)
-        ans = await conv.get_response()
-        if ans.message == '/replace' or ans.message == '/append':
-            messages = await get_msg_group(conv)
-            if not messages:
+    if is_student(event):
+        parr = users[id_to_ind[sender]].par
+        async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+            subject = await get_subject(parr, conv)
+            if not subject:
                 return 0
-            await conv.send_message("Понимаю. Сохранил. Тебя обязательно отблагодарят (но это не точно)")
-            if ans.message == '/replace':
-                solutions[parr][subject] = MsgGroup(
-                    messages, id_to_ind[sender], datetime.datetime.now())
-                print('here')
-            else:
-                if isinstance(solutions[parr][subject], MsgGroup):
-                    solutions[parr][subject].messages.extend(messages)
-                    solutions[parr][subject].student = id_to_ind[sender]
-                    solutions[parr][subject].timestamp = datetime.datetime.now()
-                else:
+            await show_sol(parr, subject, conv)
+            await conv.send_message(sure_to_change)
+            ans = await conv.get_response()
+            if ans.message == '/replace' or ans.message == '/append':
+                messages = await get_msg_group(conv, "Ладно. Скидывай мне сообщения. После последнего напиши /end")
+                if not messages:
+                    return 0
+                await conv.send_message("Понимаю. Сохранил. Тебя обязательно отблагодарят (но это не точно)")
+                if ans.message == '/replace':
                     solutions[parr][subject] = MsgGroup(
                         messages, id_to_ind[sender], datetime.datetime.now())
-            writefile(solution_storage, solutions)
-        else:
-            await conv.send_message("Ок :)")
+                    print('here')
+                else:
+                    if isinstance(solutions[parr][subject], MsgGroup):
+                        solutions[parr][subject].messages.extend(messages)
+                        solutions[parr][subject].student = id_to_ind[sender]
+                        solutions[parr][subject].timestamp = datetime.datetime.now()
+                    else:
+                        solutions[parr][subject] = MsgGroup(
+                            messages, id_to_ind[sender], datetime.datetime.now())
+                writefile(solution_storage, solutions)
+            else:
+                await conv.send_message("Ок :)")
+
 
 # @client.on(events.NewMessage(pattern=='/addtest'))
 # @unbreakable_async_decorator
@@ -324,9 +366,26 @@ async def addsol(event):
 
 
 async def main():
-    print("done")
+    print('done')
+    current_time = datetime.datetime.now()
+    if current_time.hour >= 7:
+        try:
+            new_time = current_time.replace(day=current_time.day + 1)
+        except:
+            new_time = current_time.replace(month=current_time.month + 1, day=1)
+        new_time = new_time.replace(hour=7, minute=0, second=0)
+        print(new_time)
+        delta = new_time - current_time
+        await asyncio.sleep(delta.total_seconds())
+    else:
+        new_time = current_time.replace(hour=7, minute=0, second=0)
+        print(new_time)
+        delta = new_time - current_time
+        await asyncio.sleep(delta.total_seconds())
+    while True:
+        await client.send_message(boss, 'Я жив!')
+        await asyncio.sleep(60 * 60 * 24)
 
 
 with client:
     client.loop.run_until_complete(main())
-    client.loop.run_forever()
