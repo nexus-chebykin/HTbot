@@ -25,13 +25,13 @@ boss = 242023883
 
 client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
 # client = TelegramClient('test_bot', api_id, api_hash).start(bot_token=test_bot_token)
-home_tasks = readfile(home_task_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> задание (MsgGroup)
-solutions = readfile(solution_storage, True) # Словарь: Параллель -> Словарь: предмет (str) -> решение (MsgGroup)
-notes = readfile(notes_storage, True)
+home_tasks: Dict[str, Dict[str, MsgGroup]] = readfile(home_task_storage, True) # Словарь: Параллель -> Словарь: предмет -> задание
+solutions: Dict[str, Dict[str, MsgGroup]] = readfile(solution_storage, True) # Словарь: Параллель -> Словарь: предмет -> решение
+notes: Dict[str, Note] = readfile(notes_storage, True)
+id_to_ind: Dict[int, int]
+max_ind: int
 id_to_ind, max_ind = readfile(id_to_ind_storage, False) # Словарь: tg_id -> индекс в массиве студентов; Количество пользователей
-users = readfile(users_storage, True) # Массив пользователей (Users.)
+users: List[Union[Student, Teacher]] = readfile(users_storage, True) # Массив пользователей
 pending_review = set()
 accepted = set()
-pending_review_teachers = set()
-accepted_teachers = set()
 current_review = 1
