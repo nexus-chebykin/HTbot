@@ -23,8 +23,8 @@ sure_to_change = 'Точно хочешь его изменить? (/replace, и
 normal = '0123456789абвгдеёжзийклмнопрстуфхцчшщъыьэюя '
 boss = 242023883
 
-client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
-# client = TelegramClient('test_bot', api_id, api_hash).start(bot_token=test_bot_token)
+# client = TelegramClient('bot', api_id, api_hash).start(bot_token=bot_token)
+client = TelegramClient('test_bot', api_id, api_hash).start(bot_token=test_bot_token)
 home_tasks: Dict[str, Dict[str, MsgGroup]] = readfile(home_task_storage, True) # Словарь: Параллель -> Словарь: предмет -> задание
 solutions: Dict[str, Dict[str, MsgGroup]] = readfile(solution_storage, True) # Словарь: Параллель -> Словарь: предмет -> решение
 notes: Dict[str, Note] = readfile(notes_storage, True)

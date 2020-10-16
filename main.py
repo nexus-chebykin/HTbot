@@ -5,6 +5,7 @@ from string_constants import *
 from telethon import TelegramClient, events, tl, Button
 from telethon.tl.types import InputMediaPoll, Poll, PollAnswer
 from telethon.tl.custom.conversation import Conversation
+from telethon.errors.common import AlreadyInConversationError
 from telethon.tl.custom.message import Message
 from telethon.hints import MessageLike
 from telethon.events.newmessage import NewMessage
@@ -16,16 +17,17 @@ logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s'
                     level=logging.WARNING)
 
 
-# Convers = telethon.tl.custom.conversation.Conversation
 
-def unbreakable_async_decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+def unbreakable_async_decorator(func):
     async def wrapper(*args, **kwargs):
         try:
             result = await func(*args, **kwargs)
             return result
         except Exception as s:
             await client.send_message(boss, str(s) + ' ' + func.__name__)
-
+            if isinstance(s, AlreadyInConversationError):
+                if isinstance(args[0], NewMessage.Event):
+                    await client.send_message(args[0].message.from_id, "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
     return wrapper
 
 

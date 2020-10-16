@@ -12,6 +12,8 @@ to_averatec = ['pscp.exe -pw 123456 C:\\Users\\Сеня\\Desktop\\python\\tg\\HT
          'pscp.exe -pw 123456 C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot\\bot.session semen@192.168.1.110:/home/semen/Desktop/tg/HTbot']
 to_us_tasks = ['pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/databases/sol.bn C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot\\databases',
                'pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/databases/ht.bn C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot\\databases',
-               'pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/bot.session C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot']
+               'pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/bot.session C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot',
+               'pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/databases/users.bn C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot\\databases',
+               'pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/databases/us.bn C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot\\databases']
 for el in to_us_tasks:
     subprocess.call(el)
