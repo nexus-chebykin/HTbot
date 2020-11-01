@@ -1,34 +1,10 @@
 # coding=UTF-8
-import asyncio
-import datetime
 from string_constants import *
-from telethon import TelegramClient, events, tl, Button
-from telethon.tl.types import InputMediaPoll, Poll, PollAnswer
-from telethon.tl.custom.conversation import Conversation
-from telethon.errors.common import AlreadyInConversationError
-from telethon.tl.custom.message import Message
-from telethon.hints import MessageLike
-from telethon.events.newmessage import NewMessage
-
-from random import shuffle
-import logging
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
 
 
-
-def unbreakable_async_decorator(func):
-    async def wrapper(*args, **kwargs):
-        try:
-            result = await func(*args, **kwargs)
-            return result
-        except Exception as s:
-            await client.send_message(boss, str(s) + ' ' + func.__name__)
-            if isinstance(s, AlreadyInConversationError):
-                if isinstance(args[0], NewMessage.Event):
-                    await client.send_message(args[0].message.from_id, "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
-    return wrapper
 
 
 @unbreakable_async_decorator
@@ -46,6 +22,7 @@ async def register_student(conv: Conversation, sender: int) -> None:
         assert (all(el in normal for el in msg[0].lower()))
         assert (all(el in normal for el in msg[1].lower()))
         assert (all(el in normal for el in msg[2].lower()))
+        assert (all(el in normal for el in msg[4].lower()))
         form = str(current_review) + '\n' + '\n'.join(msg) + '\n' + \
                s.first_name
         await client.send_message(boss, form)
@@ -127,22 +104,6 @@ async def register_teacher(conv: Conversation, sender: int) -> None:
         return
 
 
-@unbreakable_async_decorator
-async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str]) -> str:
-    buttons = [Button.inline(el) for el in buttons]
-    if len(buttons) > 3:
-        le = len(buttons) // 3 + (len(buttons) % 3 != 0)
-        real_buttons = [buttons[i * le: (i + 1) * le] for i in range(3)]
-    else:
-        real_buttons = buttons
-    markup = client.build_reply_markup(real_buttons)
-    await conv.send_message(message, buttons=markup)
-    clicked_button = await conv.wait_event(button_event(conv.chat_id))
-    subject = clicked_button.query.data.decode('UTF-8')
-    await clicked_button.edit('Ты выбрал {}'.format(subject))
-    return subject
-
-
 @client.on(events.NewMessage(pattern='/start'))
 @unbreakable_async_decorator
 async def new_user(event: NewMessage.Event) -> None:
@@ -189,7 +150,6 @@ def is_teacher(event):
     return (event.message.from_id in id_to_ind and isinstance(users[id_to_ind[event.message.from_id]],
                                                               Teacher)) or event.message.from_id == boss
 
-
 @client.on(events.NewMessage(pattern='/abbvhelp', func=is_student))
 @unbreakable_async_decorator
 async def help_abbv(event):
@@ -209,17 +169,37 @@ async def helper_teacher(event):
 
 
 @unbreakable_async_decorator
-async def show_task(parr: str, subject: str, conv: Conversation) -> None:
-    await conv.send_message('На данный момент дз выглядит так:')
-    if isinstance(home_tasks[parr][subject], MsgGroup) and home_tasks[parr][subject].messages:
-        for el in home_tasks[parr][subject].messages:
-            await conv.send_message(message=el[0], file=el[1])
-        await conv.send_message("Последний раз оно было изменено " +
-                                users[home_tasks[parr][subject].student].name_by + ' ' + str(
-            home_tasks[parr][subject].timestamp)[:-10])
+async def show_task(parr: str, subject: str, conv: Conversation, latest: bool = False) -> None:
+    if not latest:
+        which_date = await send_inline_message(conv,
+                                  'К какому числу ты хочешь узнать дз?',
+                                  [str(el.deadline) for el in home_tasks[parr][subject].history])
+        for el in home_tasks[parr][subject].history:
+            if str(el.deadline) == which_date:
+                to_be_showed = el
+                break
     else:
-        await conv.send_message('*Пусто*')
-
+        shift = rasp[parr].find_next(subject, today=True)
+        curd = datetime.date.today()
+        intersting_date = curd + datetime.timedelta(days=shift)
+        # to_be_showed = None
+        # for el in home_tasks[parr][subject].history:
+        #     if el.deadline == intersting_date:
+        #         to_be_showed = el
+        #         break
+        to_be_showed = home_tasks[parr][subject].history[intersting_date]\
+            if intersting_date in home_tasks[parr][subject].history else None
+    if to_be_showed:
+        res = await to_be_showed.show(conv)
+        if res:
+            if users[id_to_ind[conv.chat_id]].money:
+                users[to_be_showed.student].money += 1
+                users[id_to_ind[conv.chat_id]].money -= 1
+                writefile(users_storage, users)
+            else:
+                await conv.send_message('Ты сам на мели')
+    else:
+        await conv.send_message('Видимо, на тот день нет дз')
 
 @unbreakable_async_decorator
 async def show_sol(parr: str, subject: str, conv: Conversation) -> None:
@@ -235,10 +215,6 @@ async def show_sol(parr: str, subject: str, conv: Conversation) -> None:
         await conv.send_message('*Пусто*')
 
 
-def button_event(user) -> events.CallbackQuery:
-    return events.CallbackQuery(func=lambda e: e.sender_id == user)
-
-
 @unbreakable_async_decorator
 async def get_subject(parr, conv) -> str:
     return await send_inline_message(conv, which_subject, home_tasks[parr])
@@ -251,9 +227,14 @@ async def gettask(event) -> None:
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         parr = users[id_to_ind[sender]].par
         subject = await get_subject(parr, conv)
-        if not subject:
-            return
         await show_task(parr, subject, conv)
+
+@client.on(events.NewMessage(pattern='/tomorrow', func=is_student))
+@unbreakable_async_decorator
+async def gettomorow(event) -> None:
+    sender = event.message.from_id
+    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+
 
 
 @unbreakable_async_decorator
@@ -278,10 +259,8 @@ async def addtask(event) -> None:
         async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
             parr = users[id_to_ind[sender]].par
             subject = await get_subject(parr, conv)
-            if not subject:
-                return
-            await show_task(parr, subject, conv)
-            await conv.send_message(sure_to_change)
+            await show_task(parr, subject, conv, latest=True)
+            await send_inline_message(conv, sure_to_change)
             ans = await conv.get_response()
             if ans.message == '/replace' or ans.message == '/append':
                 messages = await get_msg_group(conv, "Ладно. Скидывай мне сообщения. После последнего напиши /end")
@@ -289,16 +268,24 @@ async def addtask(event) -> None:
                     return
                 await conv.send_message("Понимаю. Сохранил. Спасибо папаша.")
                 if ans.message == '/replace':
-                    home_tasks[parr][subject] = MsgGroup(
-                        messages, id_to_ind[sender], datetime.datetime.now())
+                    home_tasks[parr][subject].history.append(
+                        MsgGroup(
+                                messages, id_to_ind[sender], datetime.datetime.now()
+                        )
+                    )
+                    if len(home_tasks[parr][subject].history) > 4:
+                        home_tasks[parr][subject].history.pop(0)
                 else:
                     if isinstance(home_tasks[parr][subject], MsgGroup):
-                        home_tasks[parr][subject].messages.extend(messages)
-                        home_tasks[parr][subject].student = id_to_ind[sender]
-                        home_tasks[parr][subject].timestamp = datetime.datetime.now()
+                        home_tasks[parr][subject].history[-1].messages.extend(messages)
+                        home_tasks[parr][subject].history[-1].student = id_to_ind[sender]
+                        home_tasks[parr][subject].history[-1].timestamp = datetime.datetime.now()
                     else:
-                        home_tasks[parr][subject] = MsgGroup(
-                            messages, id_to_ind[sender], datetime.datetime.now())
+                        home_tasks[parr][subject] = HomeTask(
+                            MsgGroup(
+                                    messages, id_to_ind[sender], datetime.datetime.now()
+                            )
+                        )
                 writefile(home_task_storage, home_tasks)
             else:
                 await conv.send_message("Ок :)")
@@ -326,9 +313,13 @@ async def addtask(event) -> None:
                                            "Скидывайте мне сообщения. После последнего напишите /end. Чтобы прервать без сохранения - /exit")
             if messages != -1:
                 for parr in classes:
-                    home_tasks[parr][subj] = MsgGroup(
-                        messages, id_to_ind[sender], datetime.datetime.now()
+                    home_tasks[parr][subj].history.append(
+                        MsgGroup(
+                            messages, id_to_ind[sender], datetime.datetime.now()
+                        )
                     )
+                    if len(home_tasks[parr][subj].history) > 4:
+                        home_tasks[parr][subj].history.pop(0)
             writefile(home_task_storage, home_tasks)
             await conv.send_message('Готово!')
 
@@ -390,14 +381,6 @@ async def addsol(event) -> None:
                 writefile(solution_storage, solutions)
             else:
                 await conv.send_message("Ок :)")
-
-
-# @client.on(events.NewMessage(pattern=='/addtest'))
-# @unbreakable_async_decorator
-# async def addtest(event):
-#     sender = event.message.from_id
-#     async with client.conversation(sender, timeout=None, exclusive=not (sender == boss)) as conv:
-#         conv.send_message()
 
 
 async def main():
