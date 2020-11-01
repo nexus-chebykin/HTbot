@@ -15,7 +15,6 @@ from telethon.hints import MessageLike
 from telethon.events.newmessage import NewMessage
 from random import shuffle
 import logging
-from string_constants import client
 from boot import *
 
 
@@ -48,8 +47,6 @@ class Teacher(User):
         super().__init__(tg_id, name, name_by)
         self.classes = list(classes[:])
         self.subjects = list(subjects[:])
-
-users: List[Union[Student, Teacher]]
 
 class MsgGroup():
     messages: List[Tuple[Any, Any]]
@@ -93,7 +90,7 @@ class Task(MsgGroup):
                                                     users[self.student].name),
                                                     'Чел...']
                                                 )
-                return (res and res[0] == 'К'
+                return (res and res[0] == 'К')
             else:
                 await conv.send_message("Последний раз оно было изменено {} {}".format(
                                                     users[self.student].name_by,
@@ -102,16 +99,15 @@ class Task(MsgGroup):
             await conv.send_message('*Пусто*')
 
 class HomeTask():
-    history: Dict[datetime.date, Task] = []
+    history: List[Task]
 
     def __init__(self):
-        self.history = dict()
+        self.history = []
 
 class RaspDay():
     subjects: List[str]
 
     def __init__(self, data: List[str]):
-        self.day_type = 0
         self.subjects = data
 
 class Rasp():
@@ -123,14 +119,14 @@ class Rasp():
     def find_next(self, subject, amount = 1, today = False):
         '''Возвращает первые amount сдвигов до дней,
         в которые будет предмет subject, включая текущий, если today'''
-        cur_week_day = datetime.date.weekday()
+        cur_week_day = datetime.date.today()
+        cur_week_day = cur_week_day.weekday()
         ans = []
         for i in range(int(today), 1000):
-            if subject in self.timetable[(cur_week_day + i) % 6].subjects:
+            if subject in self.timetable[(cur_week_day + i) % 7].subjects:
                 ans.append(i)
                 if len(ans) == amount:
-                    break
-        return ans
+                    return ans
 
 def unbreakable_async_decorator(func):
     async def wrapper(*args, **kwargs):
@@ -148,8 +144,7 @@ def button_event(user) -> events.CallbackQuery:
     return events.CallbackQuery(func=lambda e: e.sender_id == user)
 
 @unbreakable_async_decorator
-async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, editedmessage: Optional[List[str]] = None) -> str:
-    print(client)
+async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, editedmessage: Optional[List[str]] = None) -> Optional[int]:
     buttons = [Button.inline(el) for el in buttons]
     if len(buttons) > 3:
         le = len(buttons) // 3 + (len(buttons) % 3 != 0)
@@ -158,23 +153,27 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
         real_buttons = buttons
     markup = client.build_reply_markup(real_buttons)
     # await conv.send_message(message, buttons=markup)
-    print(await conv.send_message(message, buttons=markup))
+    sent_message = await conv.send_message(message, buttons=markup)
     try:
         clicked_button = await conv.wait_event(button_event(conv.chat_id), timeout=timeout)
-        print(clicked_button)
     except asyncio.exceptions.TimeoutError:
-        return ''
+        for i in range(3, 0, -1):
+            await sent_message.edit('Самоуничтожение через {}...'.format(i))
+            await asyncio.sleep(1)
+        await sent_message.edit('Аллах Акбар')
+        await sent_message.delete(revoke=True)
+        return
     subject = clicked_button.query.data.decode('UTF-8')
+    pos = -1
+    for i in range(len(buttons)):
+        if buttons[i].text == subject:
+            pos = i
+            break
     if editedmessage:
-        pos = -1
-        for i in range(len(buttons)):
-            if buttons[i].text == subject:
-                pos = i
-                break
         await clicked_button.edit(editedmessage[pos])
     else:
         await clicked_button.edit('Ты выбрал {}'.format(subject))
-    return subject
+    return pos
 
 
 
@@ -201,5 +200,9 @@ def writefile(file: str, *data: Any) -> None:
         dump(el, f)
     f.close()
 
+async def main():
+    async with client.conversation(boss, timeout=None) as conv:
+        await send_inline_message(conv, 'asd', ['a', 'b'], 10)
 
-
+with client:
+    client.loop.run_until_complete(main())

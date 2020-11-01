@@ -169,37 +169,35 @@ async def helper_teacher(event):
 
 
 @unbreakable_async_decorator
-async def show_task(parr: str, subject: str, conv: Conversation, latest: bool = False) -> None:
-    if not latest:
-        which_date = await send_inline_message(conv,
-                                  'К какому числу ты хочешь узнать дз?',
-                                  [str(el.deadline) for el in home_tasks[parr][subject].history])
-        for el in home_tasks[parr][subject].history:
-            if str(el.deadline) == which_date:
-                to_be_showed = el
+async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = False, shift = 0) -> None:
+    cur_date = datetime.date.today()
+    for ind in range(len(home_tasks[parr][subject].history)):
+        if home_tasks[parr][subject].history[ind].deadline > cur_date:
+            ind_to_be_showed = ind
+            break
+    else:
+        await conv.send_message('*Пусто*')
+        return
+    current_pos = ind_to_be_showed + shift
+    await home_tasks[parr][subject].history[current_pos].show()
+    if switch:
+        # Поиск предыдущего задания
+        buttons = []
+        for ind in range(current_pos - 1, -1, -1):
+            if (home_tasks[parr][subject].history[ind].messages):
+                buttons.append((ind, home_tasks[parr][subject].history[ind].deadline))
                 break
-    else:
-        shift = rasp[parr].find_next(subject, today=True)
-        curd = datetime.date.today()
-        intersting_date = curd + datetime.timedelta(days=shift)
-        # to_be_showed = None
-        # for el in home_tasks[parr][subject].history:
-        #     if el.deadline == intersting_date:
-        #         to_be_showed = el
-        #         break
-        to_be_showed = home_tasks[parr][subject].history[intersting_date]\
-            if intersting_date in home_tasks[parr][subject].history else None
-    if to_be_showed:
-        res = await to_be_showed.show(conv)
-        if res:
-            if users[id_to_ind[conv.chat_id]].money:
-                users[to_be_showed.student].money += 1
-                users[id_to_ind[conv.chat_id]].money -= 1
-                writefile(users_storage, users)
-            else:
-                await conv.send_message('Ты сам на мели')
-    else:
-        await conv.send_message('Видимо, на тот день нет дз')
+        for ind in range(current_pos + 1, len(home_tasks[parr][subject].history)):
+            if (home_tasks[parr][subject].history[ind].messages):
+                buttons.append((ind, home_tasks[parr][subject].history[ind].deadline))
+                break
+        result = await send_inline_message(conv,
+                                  'Хочешь посмотреть другое задание?',
+                                  [str(option[1]) for option in buttons],
+                                  timeout=180)
+        if result:
+            await show_task(parr, subject, conv, True, buttons[result][0] - ind_to_be_showed)
+
 
 @unbreakable_async_decorator
 async def show_sol(parr: str, subject: str, conv: Conversation) -> None:
@@ -387,10 +385,7 @@ async def main():
     print('done')
     current_time = datetime.datetime.now()
     if current_time.hour >= 7:
-        try:
-            new_time = current_time.replace(day=current_time.day + 1)
-        except:
-            new_time = current_time.replace(month=current_time.month + 1, day=1)
+        new_time = current_time + datetime.timedelta(days=1)
         new_time = new_time.replace(hour=7, minute=0, second=0)
         print(new_time)
         delta = new_time - current_time
