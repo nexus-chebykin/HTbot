@@ -108,7 +108,7 @@ class Task(MsgGroup):
                                                     str(self.timestamp)[:-10]),
                                                 ['Кинуть ему монетку!', 'Я жмот'],
                                                 timeout=10,
-                                                editedmessage=['{} очень рад(а)'.format(
+                                                edited_message=['{} очень рад(а)'.format(
                                                     users[self.student].name),
                                                     'Чел...']
                                                 )
@@ -166,7 +166,32 @@ def button_event(user, msg) -> events.CallbackQuery:
     return events.CallbackQuery(func=lambda e: e.sender_id == user and e.query.msg_id == msg)
 
 @unbreakable_async_decorator
-async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, editedmessage: Optional[List[str]] = None) -> Optional[int]:
+async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, edited_message: Optional[List[str]] = None) -> Optional[int]:
+    '''
+    Отправляет сообщение с кнопками в чат и ждет ответа на него
+
+    Аргументы
+        conv:
+            Сonversation, куда будет  отправлено сообщение
+
+        message:
+            Сообщение, которое будет отправлено помимо кнопок
+
+        buttons:
+            Тексты на кнопках
+
+        timeout (optional):
+            Если пользователь не отвечает в течение timeout секунд,
+            сообщение удаляется, а функция ничего не возвращает
+
+        edited_message (optional):
+            После ответа пользователя i-ым вариантом
+            сообщение заменяется на edited_message[i]
+
+    Возвращает
+        Индекс ответа пользователя в buttons, или ничего
+    '''
+
     buttons = [Button.inline(el) for el in buttons]
     if len(buttons) > 3:
         le = len(buttons) // 3 + (len(buttons) % 3 != 0)
@@ -193,8 +218,8 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
         if buttons[i].text == subject:
             pos = i
             break
-    if editedmessage:
-        await clicked_button.edit(editedmessage[pos])
+    if edited_message:
+        await clicked_button.edit(edited_message[pos])
     else:
         await clicked_button.edit('Ты выбрал {}'.format(subject))
     return pos
@@ -222,6 +247,7 @@ async def main():
         await asyncio.gather(send_inline_message(conv, 'asd', ['a', 'b'], 10), send_inline_message(conv, 'asd', ['a', 'b'], 10))
 
 
-with client:
-    client.loop.run_until_complete(main())
-    client.run_until_disconnected()
+if __name__ == '__main__':
+    with client:
+        client.loop.run_until_complete(main())
+        client.run_until_disconnected()

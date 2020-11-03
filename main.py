@@ -338,6 +338,7 @@ async def menu(event) -> None:
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=teacher_functions)
         else:
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=student_functions)
+            if result
 
 @unbreakable_async_decorator
 async def addsol(event) -> None:
