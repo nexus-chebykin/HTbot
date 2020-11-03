@@ -4,9 +4,6 @@ from string_constants import *
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
 
-
-
-
 @unbreakable_async_decorator
 async def register_student(conv: Conversation, sender: int) -> None:
     global current_review, max_ind
@@ -107,7 +104,7 @@ async def register_teacher(conv: Conversation, sender: int) -> None:
 @client.on(events.NewMessage(pattern='/start'))
 @unbreakable_async_decorator
 async def new_user(event: NewMessage.Event) -> None:
-    sender = event.message.from_id
+    sender = (await event.get_chat()).id
     if sender in id_to_ind:
         await client.send_message(sender, user_already_signed_in)
     else:
@@ -142,30 +139,30 @@ async def dec(event):
         await conv.send_message('OK')
 
 
-def is_student(event):
-    return event.message.from_id in id_to_ind and isinstance(users[id_to_ind[event.message.from_id]], Student)
+async def is_student(event):
+    return (await event.get_chat()).id in id_to_ind and isinstance(users[id_to_ind[(await event.get_chat()).id]], Student)
 
 
-def is_teacher(event):
-    return (event.message.from_id in id_to_ind and isinstance(users[id_to_ind[event.message.from_id]],
-                                                              Teacher)) or event.message.from_id == boss
+async def is_teacher(event):
+    return ((await event.get_chat()).id in id_to_ind and isinstance(users[id_to_ind[(await event.get_chat()).id]],
+                                                              Teacher)) or (await event.get_chat()).id == boss
 
 @client.on(events.NewMessage(pattern='/abbvhelp', func=is_student))
 @unbreakable_async_decorator
 async def help_abbv(event):
-    await client.send_message(event.message.from_id, abbvhelp)
+    await client.send_message((await event.get_chat()).id, abbvhelp)
 
 
 @client.on(events.NewMessage(pattern='/help', func=is_student))
 @unbreakable_async_decorator
 async def helper(event):
-    await client.send_message(event.message.from_id, help_str)
+    await client.send_message((await event.get_chat()).id, help_str)
 
 
 @client.on(events.NewMessage(pattern='/help', func=is_teacher))
 @unbreakable_async_decorator
 async def helper_teacher(event):
-    await client.send_message(event.message.from_id, help_str_teacher)
+    await client.send_message((await event.get_chat()).id, help_str_teacher)
 
 
 @unbreakable_async_decorator
@@ -217,22 +214,20 @@ async def show_sol(parr: str, subject: str, conv: Conversation) -> None:
 async def get_subject(parr, conv) -> str:
     return await send_inline_message(conv, which_subject, home_tasks[parr])
 
-
 @client.on(events.NewMessage(pattern='/gettask', func=is_student))
 @unbreakable_async_decorator
 async def gettask(event) -> None:
-    sender = event.message.from_id
+    sender = (await event.get_chat()).id
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         parr = users[id_to_ind[sender]].par
         subject = await get_subject(parr, conv)
         await show_task(parr, subject, conv)
 
-@client.on(events.NewMessage(pattern='/tomorrow', func=is_student))
-@unbreakable_async_decorator
-async def gettomorow(event) -> None:
-    sender = event.message.from_id
-    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-
+# @client.on(events.NewMessage(pattern='/tomorrow', func=is_student))
+# @unbreakable_async_decorator
+# async def gettomorow(event) -> None:
+#     sender = (await event.get_chat()).id
+#     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
 
 
 @unbreakable_async_decorator
@@ -252,7 +247,7 @@ async def get_msg_group(conv: Conversation, msg: MessageLike) -> Union[List[Tupl
 @client.on(events.NewMessage(pattern='/addtask'))
 @unbreakable_async_decorator
 async def addtask(event) -> None:
-    sender = event.message.from_id
+    sender = (await event.get_chat()).id
     if is_student(event):
         async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
             parr = users[id_to_ind[sender]].par
@@ -325,7 +320,7 @@ async def addtask(event) -> None:
 @client.on(events.NewMessage(pattern='/getsol', func=is_student))
 @unbreakable_async_decorator
 async def getsol(event) -> None:
-    sender = event.message.from_id
+    sender = (await event.get_chat()).id
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         parr = users[id_to_ind[sender]].par
         subject = await get_subject(parr, conv)
@@ -334,22 +329,19 @@ async def getsol(event) -> None:
         await show_sol(parr, subject, conv)
 
 
-# @client.on(events.NewMessage(pattern='/addnote'))
-# @unbreakable_async_decorator
-# async def addnote(event) -> None:
-#     sender = event.message.from_id
-#     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-#         await conv.send_message('Как она будет называться?')
-#         name = await conv.get_response()
-#         body = await get_msg_group(conv, 'Скидывайте мне сообщения. После последнего напишите /end. Чтобы прервать без сохранения - /exit')
-#         if body != -1:
-#             s
+@client.on(events.NewMessage(pattern='/menu', func=is_student))
+@unbreakable_async_decorator
+async def menu(event) -> None:
+    sender = (await event.get_chat()).id
+    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+        if await is_teacher(event):
+            result = await send_inline_message(conv, 'Choose your Destiny', buttons=teacher_functions)
+        else:
+            result = await send_inline_message(conv, 'Choose your Destiny', buttons=student_functions)
 
-
-@client.on(events.NewMessage(pattern='/addsol'))
 @unbreakable_async_decorator
 async def addsol(event) -> None:
-    sender = event.message.from_id
+    sender = (await event.get_chat()).id
     if is_student(event):
         parr = users[id_to_ind[sender]].par
         async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
@@ -379,6 +371,9 @@ async def addsol(event) -> None:
                 writefile(solution_storage, solutions)
             else:
                 await conv.send_message("Ок :)")
+
+
+
 
 
 async def main():

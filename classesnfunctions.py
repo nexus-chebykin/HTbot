@@ -1,7 +1,5 @@
-from pickle import load, dump
 import datetime
 from telethon import Button
-from typing import *
 import asyncio
 import datetime
 from telethon import TelegramClient
@@ -16,6 +14,30 @@ from telethon.events.newmessage import NewMessage
 from random import shuffle
 import logging
 from boot import *
+from pickle import load, dump
+from typing import *
+
+def readfile(file: str, single: bool) -> Union[Any, List[Any]]:
+    f = open(file, 'br')
+    if single:
+        t = load(f)
+        f.close()
+        return t
+    t = []
+    while True:
+        try:
+            t.append(load(f))
+        except EOFError:
+            return t
+
+
+def writefile(file: str, *data: Any) -> None:
+    '''Сначала файл, потом [данные]'''
+    print(data)
+    f = open(file, 'bw')
+    for el in data:
+        dump(el, f)
+    f.close()
 
 
 class User():
@@ -140,8 +162,8 @@ def unbreakable_async_decorator(func):
                     await client.send_message(args[0].message.from_id, "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
     return wrapper
 
-def button_event(user) -> events.CallbackQuery:
-    return events.CallbackQuery(func=lambda e: e.sender_id == user)
+def button_event(user, msg) -> events.CallbackQuery:
+    return events.CallbackQuery(func=lambda e: e.sender_id == user and e.query.msg_id == msg)
 
 @unbreakable_async_decorator
 async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, editedmessage: Optional[List[str]] = None) -> Optional[int]:
@@ -155,7 +177,9 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
     # await conv.send_message(message, buttons=markup)
     sent_message = await conv.send_message(message, buttons=markup)
     try:
-        clicked_button = await conv.wait_event(button_event(conv.chat_id), timeout=timeout)
+        clicked_button = await conv.wait_event(button_event(conv.chat_id, sent_message.id), timeout=timeout)
+        print(sent_message)
+        print(clicked_button)
     except asyncio.exceptions.TimeoutError:
         for i in range(3, 0, -1):
             await sent_message.edit('Самоуничтожение через {}...'.format(i))
@@ -175,34 +199,29 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
         await clicked_button.edit('Ты выбрал {}'.format(subject))
     return pos
 
+home_task_storage = 'databases/ht.bn'
+solution_storage = 'databases/sol.bn'
+id_to_ind_storage = 'databases/us.bn'
+users_storage = 'databases/users.bn'
+notes_storage = 'databases/notes.bn'
+rasp_storage = 'databases/rasp.bn'
+home_tasks = readfile(home_task_storage, True)  # Словарь: Параллель -> Словарь: предмет -> задание
+solutions = readfile(solution_storage, True)  # Словарь: Параллель -> Словарь: предмет -> решение
+notes = readfile(notes_storage, True)
+rasp = readfile(rasp_storage, True)  # Словарь: Параллель -> расписание
+id_to_ind, max_ind = readfile(id_to_ind_storage,
+                              False)  # Словарь: tg_id -> индекс в массиве студентов; Количество пользователей
+users = readfile(users_storage, True)  # Массив пользователей
+pending_review = set()
+accepted = set()
+current_review = 1
 
-
-
-def readfile(file: str, single: bool) -> Union[Any, List[Any]]:
-    f = open(file, 'br')
-    if single:
-        t = load(f)
-        f.close()
-        return t
-    t = []
-    while True:
-        try:
-            t.append(load(f))
-        except EOFError:
-            return t
-
-
-def writefile(file: str, *data: Any) -> None:
-    '''Сначала файл, потом [данные]'''
-    print(data)
-    f = open(file, 'bw')
-    for el in data:
-        dump(el, f)
-    f.close()
 
 async def main():
     async with client.conversation(boss, timeout=None) as conv:
-        await send_inline_message(conv, 'asd', ['a', 'b'], 10)
+        await asyncio.gather(send_inline_message(conv, 'asd', ['a', 'b'], 10), send_inline_message(conv, 'asd', ['a', 'b'], 10))
+
 
 with client:
     client.loop.run_until_complete(main())
+    client.run_until_disconnected()
