@@ -155,7 +155,7 @@ async def help_abbv(event):
 
 @client.on(events.NewMessage(pattern='/help', func=is_student))
 @unbreakable_async_decorator
-async def helper(event):
+async def helper_student(event):
     await client.send_message((await event.get_chat()).id, help_str)
 
 
@@ -167,6 +167,9 @@ async def helper_teacher(event):
 
 @unbreakable_async_decorator
 async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = False, shift = 0) -> None:
+    '''
+    Показывает задание на урок строго больше текущего
+    '''
     cur_date = datetime.date.today()
     for ind in range(len(home_tasks[parr][subject].history)):
         if home_tasks[parr][subject].history[ind].deadline > cur_date:
@@ -212,7 +215,8 @@ async def show_sol(parr: str, subject: str, conv: Conversation) -> None:
 
 @unbreakable_async_decorator
 async def get_subject(parr, conv) -> str:
-    return await send_inline_message(conv, which_subject, home_tasks[parr])
+    tmp = list(home_tasks[parr].keys())
+    return tmp[await send_inline_message(conv, which_subject, tmp)]
 
 @client.on(events.NewMessage(pattern='/gettask', func=is_student))
 @unbreakable_async_decorator
@@ -221,7 +225,7 @@ async def gettask(event) -> None:
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         parr = users[id_to_ind[sender]].par
         subject = await get_subject(parr, conv)
-        await show_task(parr, subject, conv)
+        await show_task(parr, subject, conv, switch=True)
 
 # @client.on(events.NewMessage(pattern='/tomorrow', func=is_student))
 # @unbreakable_async_decorator
@@ -236,85 +240,60 @@ async def get_msg_group(conv: Conversation, msg: MessageLike) -> Union[List[Tupl
     task_part = await conv.get_response()
     messages = []
     while task_part.message != '/end':
-        if task_part.message == '/exit':
-            await conv.send_message("Ок :)")
-            return -1
         messages.append((task_part.message, task_part.media))
+        print(task_part.media)
         task_part = await conv.get_response()
     return messages
 
 
-@client.on(events.NewMessage(pattern='/addtask'))
 @unbreakable_async_decorator
-async def addtask(event) -> None:
-    sender = (await event.get_chat()).id
-    if is_student(event):
-        async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-            parr = users[id_to_ind[sender]].par
-            subject = await get_subject(parr, conv)
-            await show_task(parr, subject, conv, latest=True)
-            await send_inline_message(conv, sure_to_change)
-            ans = await conv.get_response()
-            if ans.message == '/replace' or ans.message == '/append':
-                messages = await get_msg_group(conv, "Ладно. Скидывай мне сообщения. После последнего напиши /end")
-                if messages == -1:
-                    return
-                await conv.send_message("Понимаю. Сохранил. Спасибо папаша.")
-                if ans.message == '/replace':
-                    home_tasks[parr][subject].history.append(
-                        MsgGroup(
-                                messages, id_to_ind[sender], datetime.datetime.now()
-                        )
-                    )
-                    if len(home_tasks[parr][subject].history) > 4:
-                        home_tasks[parr][subject].history.pop(0)
-                else:
-                    if isinstance(home_tasks[parr][subject], MsgGroup):
-                        home_tasks[parr][subject].history[-1].messages.extend(messages)
-                        home_tasks[parr][subject].history[-1].student = id_to_ind[sender]
-                        home_tasks[parr][subject].history[-1].timestamp = datetime.datetime.now()
-                    else:
-                        home_tasks[parr][subject] = HomeTask(
-                            MsgGroup(
-                                    messages, id_to_ind[sender], datetime.datetime.now()
-                            )
-                        )
-                writefile(home_task_storage, home_tasks)
-            else:
-                await conv.send_message("Ок :)")
-    elif is_teacher(event):
-        teacher = users[id_to_ind[sender]]
-        # teacher = User.Teacher(boss, 'Сеня', 'Сеней', ['11Б', "11В"], ['phy', 'ast'])
-        async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-            await conv.send_message('Каким классам хотите добавить домашнее задание?')
-            classes = []
-            while True:
-                classes.append(await send_inline_message(conv, 'Классы', teacher.classes))
-                if len(classes) < len(teacher.classes):
-                    ans = await send_inline_message(conv, 'Может, еще 1?', ['Да', 'Нет'])
-                    if len(ans) == 3:
-                        break
-                else:
+async def addtask_student(conv: Conversation) -> None:
+    print(await conv.get_chat())
+    sender = await (conv.get_chat()).id
+    parr = users[id_to_ind[sender]].par
+    subject = await get_subject(parr, conv)
+    await show_task(parr, subject, conv)
+    possible_days = rasp[parr].find_next(subject, 4)
+    for
+    await send_inline_message(conv, 'На какой день?', )
+    result = await send_inline_message(conv, 'Выбери функцию', ['Заменить', 'Добавить', 'Ничего'])
+    if result == 0:
+        messages = get_msg_group(conv, 'Скидывай сообщения. Как только закончишь - напиши /end')
+
+
+async def addtask_teacher(conv: Conversation) -> None:
+    teacher = users[id_to_ind[sender]]
+    # teacher = User.Teacher(boss, 'Сеня', 'Сеней', ['11Б', "11В"], ['phy', 'ast'])
+    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+        await conv.send_message('Каким классам хотите добавить домашнее задание?')
+        classes = []
+        while True:
+            classes.append(await send_inline_message(conv, 'Классы', teacher.classes))
+            if len(classes) < len(teacher.classes):
+                ans = await send_inline_message(conv, 'Может, еще 1?', ['Да', 'Нет'])
+                if len(ans) == 3:
                     break
-            if len(teacher.subjects) > 1:
-                subj = await send_inline_message(conv, 'А по какому предмету?', teacher.subjects)
             else:
-                subj = teacher.subjects[0]
-            t = '{}, ' * (len(classes) - 1)
-            await conv.send_message(('Вы собираетесь добавить ' + t + '{} дз по {}').format(*classes, subj))
-            messages = await get_msg_group(conv,
-                                           "Скидывайте мне сообщения. После последнего напишите /end. Чтобы прервать без сохранения - /exit")
-            if messages != -1:
-                for parr in classes:
-                    home_tasks[parr][subj].history.append(
-                        MsgGroup(
-                            messages, id_to_ind[sender], datetime.datetime.now()
-                        )
+                break
+        if len(teacher.subjects) > 1:
+            subj = await send_inline_message(conv, 'А по какому предмету?', teacher.subjects)
+        else:
+            subj = teacher.subjects[0]
+        t = '{}, ' * (len(classes) - 1)
+        await conv.send_message(('Вы собираетесь добавить ' + t + '{} дз по {}').format(*classes, subj))
+        messages = await get_msg_group(conv,
+                                       "Скидывайте мне сообщения. После последнего напишите /end. Чтобы прервать без сохранения - /exit")
+        if messages != -1:
+            for parr in classes:
+                home_tasks[parr][subj].history.append(
+                    MsgGroup(
+                        messages, id_to_ind[sender], datetime.datetime.now()
                     )
-                    if len(home_tasks[parr][subj].history) > 4:
-                        home_tasks[parr][subj].history.pop(0)
-            writefile(home_task_storage, home_tasks)
-            await conv.send_message('Готово!')
+                )
+                if len(home_tasks[parr][subj].history) > 4:
+                    home_tasks[parr][subj].history.pop(0)
+        writefile(home_task_storage, home_tasks)
+        await conv.send_message('Готово!')
 
 
 @client.on(events.NewMessage(pattern='/getsol', func=is_student))
@@ -335,10 +314,11 @@ async def menu(event) -> None:
     sender = (await event.get_chat()).id
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
         if await is_teacher(event):
-            result = await send_inline_message(conv, 'Choose your Destiny', buttons=teacher_functions)
+            result = await send_inline_message(conv, 'Choose your Destiny', buttons=teacher_functions, max_per_row=1)
         else:
-            result = await send_inline_message(conv, 'Choose your Destiny', buttons=student_functions)
-            if result
+            result = await send_inline_message(conv, 'Choose your Destiny', buttons=student_functions, max_per_row=1)
+            result = student_functions[result]
+
 
 @unbreakable_async_decorator
 async def addsol(event) -> None:

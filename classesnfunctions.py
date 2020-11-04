@@ -92,6 +92,10 @@ class Note(MsgGroup):
 class Task(MsgGroup):
     deadline: datetime.date
 
+    def __init__(self,  deadline, msg=(), student=0, timestamp=datetime.date.now()):
+        super().__init__(msg, student, timestamp)
+        self.deadline = deadline
+
     async def show(self, conv: Conversation, ask_for_money: bool = True) -> Optional[Tuple[int, int]]:
         '''
         Возвращает (student_from, student_to), если кинули монетку
@@ -165,8 +169,11 @@ def unbreakable_async_decorator(func):
 def button_event(user, msg) -> events.CallbackQuery:
     return events.CallbackQuery(func=lambda e: e.sender_id == user and e.query.msg_id == msg)
 
+def isboss(tg_id):
+    return tg_id == boss or tg_id == timur
+
 @unbreakable_async_decorator
-async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, edited_message: Optional[List[str]] = None) -> Optional[int]:
+async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, edited_message: Optional[List[str]] = None, max_per_row: Optional[int] = 3) -> Optional[int]:
     '''
     Отправляет сообщение с кнопками в чат и ждет ответа на него
 
@@ -191,20 +198,13 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
     Возвращает
         Индекс ответа пользователя в buttons, или ничего
     '''
-
-    buttons = [Button.inline(el) for el in buttons]
-    if len(buttons) > 3:
-        le = len(buttons) // 3 + (len(buttons) % 3 != 0)
-        real_buttons = [buttons[i * le: (i + 1) * le] for i in range(3)]
-    else:
-        real_buttons = buttons
+    buttons = [Button.inline(el, bytes([i])) for i, el in enumerate(buttons, 1)]
+    real_buttons = [buttons[i:i + max_per_row] for i in range(0, len(buttons), max_per_row)]
     markup = client.build_reply_markup(real_buttons)
     # await conv.send_message(message, buttons=markup)
     sent_message = await conv.send_message(message, buttons=markup)
     try:
         clicked_button = await conv.wait_event(button_event(conv.chat_id, sent_message.id), timeout=timeout)
-        print(sent_message)
-        print(clicked_button)
     except asyncio.exceptions.TimeoutError:
         for i in range(3, 0, -1):
             await sent_message.edit('Самоуничтожение через {}...'.format(i))
@@ -212,16 +212,11 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
         await sent_message.edit('Аллах Акбар')
         await sent_message.delete(revoke=True)
         return
-    subject = clicked_button.query.data.decode('UTF-8')
-    pos = -1
-    for i in range(len(buttons)):
-        if buttons[i].text == subject:
-            pos = i
-            break
+    pos = int.from_bytes(clicked_button.query.data, 'big') - 1
     if edited_message:
         await clicked_button.edit(edited_message[pos])
     else:
-        await clicked_button.edit('Ты выбрал {}'.format(subject))
+        await clicked_button.edit('Ты выбрал {}'.format(buttons[pos].text))
     return pos
 
 home_task_storage = 'databases/ht.bn'
@@ -240,14 +235,14 @@ users = readfile(users_storage, True)  # Массив пользователей
 pending_review = set()
 accepted = set()
 current_review = 1
-
-
-async def main():
-    async with client.conversation(boss, timeout=None) as conv:
-        await asyncio.gather(send_inline_message(conv, 'asd', ['a', 'b'], 10), send_inline_message(conv, 'asd', ['a', 'b'], 10))
-
-
 if __name__ == '__main__':
+
+
+
+    async def main():
+        async with client.conversation(timur, timeout=None) as conv:
+            await send_inline_message(conv, 'asd', ['a', 'b'], 10)
+
     with client:
         client.loop.run_until_complete(main())
         client.run_until_disconnected()
