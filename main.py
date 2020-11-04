@@ -216,16 +216,15 @@ async def show_sol(parr: str, subject: str, conv: Conversation) -> None:
 @unbreakable_async_decorator
 async def get_subject(parr, conv) -> str:
     tmp = list(home_tasks[parr].keys())
-    return tmp[await send_inline_message(conv, which_subject, tmp)]
+    res = await send_inline_message(conv, which_subject, tmp)
+    return tmp[res]
 
-@client.on(events.NewMessage(pattern='/gettask', func=is_student))
 @unbreakable_async_decorator
-async def gettask(event) -> None:
-    sender = (await event.get_chat()).id
-    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-        parr = users[id_to_ind[sender]].par
-        subject = await get_subject(parr, conv)
-        await show_task(parr, subject, conv, switch=True)
+async def gettask(conv: Conversation) -> None:
+    sender = (await conv.get_chat()).id
+    parr = users[id_to_ind[sender]].par
+    subject = await get_subject(parr, conv)
+    await show_task(parr, subject, conv, switch=True)
 
 # @client.on(events.NewMessage(pattern='/tomorrow', func=is_student))
 # @unbreakable_async_decorator
@@ -248,18 +247,18 @@ async def get_msg_group(conv: Conversation, msg: MessageLike) -> Union[List[Tupl
 
 @unbreakable_async_decorator
 async def addtask_student(conv: Conversation) -> None:
-    print(await conv.get_chat())
-    sender = await (conv.get_chat()).id
+    sender = (await conv.get_chat()).id
     parr = users[id_to_ind[sender]].par
     subject = await get_subject(parr, conv)
-    await show_task(parr, subject, conv)
+    # await show_task(parr, subject, conv)
     possible_days = rasp[parr].find_next(subject, 4)
-    for
-    await send_inline_message(conv, 'На какой день?', )
+    cur_day = datetime.date.today()
+    possible_days = [str(cur_day + datetime.timedelta(days=el)) for el in possible_days]
+    await send_inline_message(conv, 'На какой день?', possible_days)
     result = await send_inline_message(conv, 'Выбери функцию', ['Заменить', 'Добавить', 'Ничего'])
-    if result == 0:
-        messages = get_msg_group(conv, 'Скидывай сообщения. Как только закончишь - напиши /end')
-
+    # if result == 0:
+    #     messages = get_msg_group(conv, 'Скидывай сообщения. Как только закончишь - напиши /end')
+    #     home_tasks[parr][subject] = HomeTask
 
 async def addtask_teacher(conv: Conversation) -> None:
     teacher = users[id_to_ind[sender]]
@@ -311,13 +310,18 @@ async def getsol(event) -> None:
 @client.on(events.NewMessage(pattern='/menu', func=is_student))
 @unbreakable_async_decorator
 async def menu(event) -> None:
+    print('ok')
     sender = (await event.get_chat()).id
     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
-        if await is_teacher(event):
+        if False and await is_teacher(event):
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=teacher_functions, max_per_row=1)
         else:
+            print('ok')
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=student_functions, max_per_row=1)
-            result = student_functions[result]
+            if result == 0:
+                await gettask(conv)
+            elif result == 1:
+                await addtask_student(conv)
 
 
 @unbreakable_async_decorator

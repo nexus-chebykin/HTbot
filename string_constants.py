@@ -20,15 +20,3 @@ student_functions = ['Узнать дз',
                      'Помощь с названиями предметов',
                      'Добавить записку',
                      'Посмотреть записки']
-
-
-home_tasks: Dict[str, Dict[str, HomeTask]]  # Словарь: Параллель -> Словарь: предмет -> задание
-solutions: Dict[str, Dict[str, MsgGroup]]   # Словарь: Параллель -> Словарь: предмет -> решение
-notes: Dict[str, Note]
-rasp: Dict[str, Rasp]  # Словарь: Параллель -> расписание
-id_to_ind: Dict[int, int]
-max_ind: int # Словарь: tg_id -> индекс в массиве студентов; Количество пользователей
-users: List[Union[Student, Teacher]] # Массив пользователей
-pending_review = set()
-accepted = set()
-current_review = 1
