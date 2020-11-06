@@ -262,14 +262,6 @@ if __name__ == '__main__':
     #     async with client.conversation(timur, timeout=None) as conv:
     #         await send_inline_message(conv, 'asd', ['a', 'b'], 10)
 
-    async def looooooooooong():
-        time.sleep(10)
-        print('here1')
-        await asyncio.sleep(0.1)
-        print('here2')
-        time.sleep(60)
-        print('here3')
-
 
     @client.on(events.NewMessage())
     async def opa(event):
@@ -278,6 +270,4 @@ if __name__ == '__main__':
             await send_inline_message(conv, 'asd', ['a', 'b'])
 
     with client:
-
-        client.loop.create_task(looooooooooong())
         client.run_until_disconnected()
