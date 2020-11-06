@@ -2,6 +2,7 @@ import datetime
 from telethon import Button
 import asyncio
 import datetime
+import traceback
 from telethon import TelegramClient
 from passwords import *
 from telethon import TelegramClient, events, tl, Button
@@ -16,6 +17,7 @@ import logging
 from boot import *
 from pickle import load, dump
 from typing import *
+import time
 
 def readfile(file: str, single: bool) -> Union[Any, List[Any]]:
     f = open(file, 'br')
@@ -89,6 +91,19 @@ class Note(MsgGroup):
         self.header = header
 
 
+def unbreakable_async_decorator(func):
+    async def wrapper(*args, **kwargs):
+        try:
+            result = await func(*args, **kwargs)
+            return result
+        except Exception as s:
+            await client.send_message(boss, str(s) + ' ' + func.__name__)
+            if isinstance(s, AlreadyInConversationError):
+                if isinstance(args[0], NewMessage.Event):
+                    await client.send_message(args[0].message.from_id, "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
+    # return wrapper
+    return func
+
 class Task(MsgGroup):
     deadline: datetime.date
 
@@ -96,27 +111,21 @@ class Task(MsgGroup):
         super().__init__(msg, student, timestamp)
         self.deadline = deadline
 
-    async def show(self, conv: Conversation, ask_for_money: bool = True) -> Optional[Tuple[int, int]]:
-        '''
-        Возвращает (student_from, student_to), если кинули монетку
-        '''
-
+    @unbreakable_async_decorator
+    async def show(self, conv: Conversation, ask_for_money: bool = True):
         if self.messages:
             await conv.send_message('Дз к {}:'.format(self.deadline))
             for el in self.messages:
                 await conv.send_message(message=el[0], file=el[1])
             if ask_for_money:
-                res = await send_inline_message(conv,
-                                                "Последний раз оно было изменено {} {}".format(
-                                                    users[self.student].name_by,
-                                                    str(self.timestamp)[:-10]),
-                                                ['Кинуть ему монетку!', 'Я жмот'],
-                                                timeout=10,
-                                                edited_message=['{} очень рад(а)'.format(
-                                                    users[self.student].name),
-                                                    'Чел...']
+                 return client.loop.create_task(transuction(conv,
+                                                      id_to_ind[(await conv.get_chat()).id],
+                                                      self.student,
+                                                      "Последний раз оно было изменено {} {}".format(
+                                                          users[self.student].name_by,
+                                                          str(self.timestamp)[:-10]),
                                                 )
-                return (res and res[0] == 'К')
+                                          )
             else:
                 await conv.send_message("Последний раз оно было изменено {} {}".format(
                                                     users[self.student].name_by,
@@ -148,29 +157,32 @@ class Rasp():
         cur_week_day = datetime.date.today()
         cur_week_day = cur_week_day.weekday()
         ans = []
-        for i in range(int(today), 1000):
+        for i in range(1 - int(today), 1000):
             if ((cur_week_day + i) % 7) != 6 and subject in self.timetable[(cur_week_day + i) % 7].subjects:
                 ans.append(i)
                 if len(ans) == amount:
                     return ans
 
-def unbreakable_async_decorator(func):
-    async def wrapper(*args, **kwargs):
-        try:
-            result = await func(*args, **kwargs)
-            return result
-        except Exception as s:
-            await client.send_message(boss, str(s) + ' ' + func.__name__)
-            if isinstance(s, AlreadyInConversationError):
-                if isinstance(args[0], NewMessage.Event):
-                    await client.send_message(args[0].message.from_id, "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
-    return wrapper
 
 def button_event(user, msg) -> events.CallbackQuery:
     return events.CallbackQuery(func=lambda e: e.sender_id == user and e.query.msg_id == msg)
 
 def isboss(tg_id):
     return tg_id == boss or tg_id == timur
+
+@unbreakable_async_decorator
+async def transuction(conv, fro, to, msg):
+    res = await send_inline_message(conv, msg, ['Кинуть ему монетку!', 'Я жмот'],
+                                        timeout=30,
+                                        edited_message=['{} очень рад(а)'.format(
+                                            users[fro].name),
+                                            'Чел...'])
+    if res == 1:
+        if users[fro].money == 0:
+            await conv.send_message("Ты на мели")
+        else:
+            users[fro].money -= 1
+            users[to].money += 1
 
 @unbreakable_async_decorator
 async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, edited_message: Optional[List[str]] = None, max_per_row: Optional[int] = 3) -> Optional[int]:
@@ -206,16 +218,16 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
         clicked_button = await conv.wait_event(button_event(conv.chat_id, sent_message.id), timeout=timeout)
     except asyncio.exceptions.TimeoutError:
         for i in range(3, 0, -1):
-            await sent_message.edit('Самоуничтожение через {}...'.format(i))
+            await sent_message.edit('Самоуничтожение через {}...'.format(i), buttons=None)
             await asyncio.sleep(1)
         await sent_message.edit('Аллах Акбар')
         await sent_message.delete(revoke=True)
         return
     pos = int.from_bytes(clicked_button.query.data, 'big') - 1
     if edited_message:
-        await clicked_button.edit(edited_message[pos])
+        await sent_message.edit(edited_message[pos], buttons=None)
     else:
-        await clicked_button.edit('Ты выбрал {}'.format(buttons[pos].text))
+        await sent_message.edit('Ты выбрал {}'.format(buttons[pos].text), buttons=None)
     return pos
 
 
@@ -243,12 +255,29 @@ pending_review = set()
 accepted = set()
 current_review = 1
 
+
 if __name__ == '__main__':
 
     # async def main():
     #     async with client.conversation(timur, timeout=None) as conv:
     #         await send_inline_message(conv, 'asd', ['a', 'b'], 10)
 
+    async def looooooooooong():
+        time.sleep(10)
+        print('here1')
+        await asyncio.sleep(0.1)
+        print('here2')
+        time.sleep(60)
+        print('here3')
+
+
+    @client.on(events.NewMessage())
+    async def opa(event):
+        print('heree')
+        async with client.conversation((await event.get_chat()).id, timeout=None) as conv:
+            await send_inline_message(conv, 'asd', ['a', 'b'])
+
     with client:
-        # client.loop.run_until_complete(main())
+
+        client.loop.create_task(looooooooooong())
         client.run_until_disconnected()
