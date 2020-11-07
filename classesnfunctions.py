@@ -42,6 +42,10 @@ def writefile(file: str, *data: Any) -> None:
     f.close()
 
 
+async def get_id(conv: Conversation) -> int:
+    return (await conv.get_chat()).id
+
+
 class User():
     tg_id: int
     name: str
@@ -54,7 +58,7 @@ class User():
 
 
 class Student(User):
-    parr: str
+    par: str
     money: int
 
     def __init__(self, tg_id, name, name_by, par='11В'):
@@ -83,26 +87,31 @@ class MsgGroup():
         self.timestamp = timestamp
 
 
-class Note(MsgGroup):
-    header: str
-
-    def __init__(self, header='', msg=(), student=0, timestamp=datetime.datetime.now()):
-        super().__init__(msg, student, timestamp)
-        self.header = header
-
-
 def unbreakable_async_decorator(func):
     async def wrapper(*args, **kwargs):
         try:
             result = await func(*args, **kwargs)
             return result
-        except Exception as s:
+        except BaseException as s:
             await client.send_message(boss, str(s) + ' ' + func.__name__)
             if isinstance(s, AlreadyInConversationError):
                 if isinstance(args[0], NewMessage.Event):
                     await client.send_message(args[0].message.from_id, "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
-    # return wrapper
-    return func
+    return wrapper
+    # return func
+class Note(MsgGroup):
+
+    header: str
+
+    def __init__(self, header='', msg=(), student=0, timestamp=datetime.datetime.now()):
+        super().__init__(msg, student, timestamp)
+        self.header = header
+    @unbreakable_async_decorator
+    async def show(self, conv: Conversation):
+        for el in self.messages:
+            await conv.send_message(el[0], file=el[1])
+
+
 
 class Task(MsgGroup):
     deadline: datetime.date
@@ -241,7 +250,8 @@ home_tasks: Dict[str, Dict[str, HomeTask]] = readfile(home_task_storage, True)
 '''Словарь: Параллель -> Словарь: предмет -> задание'''
 solutions: Dict[str, Dict[str, MsgGroup]] = readfile(solution_storage, True)
 '''Словарь: Параллель -> Словарь: предмет -> решение'''
-notes: Dict[str, Note] = readfile(notes_storage, True)
+notes: Dict[str, List[Note]] = readfile(notes_storage, True)
+notes['11В'] = [Note(str(i + 1), [(str(i), None)], i) for i in range(20)]
 rasp: Dict[str, Rasp] = readfile(rasp_storage, True)
 '''Словарь: Параллель -> расписание'''
 tmp = readfile(id_to_ind_storage, False)
@@ -262,12 +272,6 @@ if __name__ == '__main__':
     #     async with client.conversation(timur, timeout=None) as conv:
     #         await send_inline_message(conv, 'asd', ['a', 'b'], 10)
 
-
-    @client.on(events.NewMessage())
-    async def opa(event):
-        print('heree')
-        async with client.conversation((await event.get_chat()).id, timeout=None) as conv:
-            await send_inline_message(conv, 'asd', ['a', 'b'])
 
     with client:
         client.run_until_disconnected()
