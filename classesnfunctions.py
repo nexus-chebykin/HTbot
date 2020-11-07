@@ -1,10 +1,9 @@
 import datetime
-from telethon import Button
 import asyncio
 import datetime
 import traceback
+from string_constants import *
 from telethon import TelegramClient
-from passwords import *
 from telethon import TelegramClient, events, tl, Button
 from telethon.tl.types import InputMediaPoll, Poll, PollAnswer
 from telethon.tl.custom.conversation import Conversation
@@ -42,9 +41,17 @@ def writefile(file: str, *data: Any) -> None:
     f.close()
 
 
-async def get_id(conv: Conversation) -> int:
-    return (await conv.get_chat()).id
+async def is_student(event):
+    return (await event.get_chat()).id in id_to_ind and isinstance(users[id_to_ind[(await event.get_chat()).id]], Student)
 
+
+async def is_teacher(event):
+    return ((await event.get_chat()).id in id_to_ind and isinstance(users[id_to_ind[(await event.get_chat()).id]],
+                                                              Teacher)) or (await event.get_chat()).id == boss
+
+
+async def get_id(event_or_conv) -> int:
+    return (await event_or_conv.get_chat()).id
 
 class User():
     tg_id: int
@@ -179,6 +186,9 @@ def button_event(user, msg) -> events.CallbackQuery:
 def isboss(tg_id):
     return tg_id == boss or tg_id == timur
 
+async def is_boss(event):
+    return isboss(await get_id(event))
+
 @unbreakable_async_decorator
 async def transuction(conv, fro, to, msg):
     res = await send_inline_message(conv, msg, ['Кинуть ему монетку!', 'Я жмот'],
@@ -239,13 +249,23 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
         await sent_message.edit('Ты выбрал {}'.format(buttons[pos].text), buttons=None)
     return pos
 
+@unbreakable_async_decorator
+async def get_subject(parr, conv) -> str:
+    tmp = list(home_tasks[parr].keys())
+    res = await send_inline_message(conv, which_subject, tmp)
+    return tmp[res]
 
-home_task_storage = 'databases/ht.bn'
-solution_storage = 'databases/sol.bn'
-id_to_ind_storage = 'databases/us.bn'
-users_storage = 'databases/users.bn'
-notes_storage = 'databases/notes.bn'
-rasp_storage = 'databases/rasp.bn'
+@unbreakable_async_decorator
+async def get_msg_group(conv: Conversation, msg: MessageLike) -> Union[List[Tuple[Any, Any]], int]:
+    await conv.send_message(msg)
+    task_part = await conv.get_response()
+    messages = []
+    while task_part.message != '/end':
+        messages.append((task_part.message, task_part.media))
+        print(task_part.media)
+        task_part = await conv.get_response()
+    return messages
+
 home_tasks: Dict[str, Dict[str, HomeTask]] = readfile(home_task_storage, True)
 '''Словарь: Параллель -> Словарь: предмет -> задание'''
 solutions: Dict[str, Dict[str, MsgGroup]] = readfile(solution_storage, True)
@@ -261,13 +281,14 @@ max_ind: int = tmp[1]
 '''Количество пользователей'''
 users: List[Union[Student, Teacher]] = readfile(users_storage, True)
 '''Массив пользователей'''
+stickers: Dict[str, Any] = readfile(stickers_storage, True)
+'''Словарь: название -> стикер'''
 pending_review = set()
 accepted = set()
 current_review = 1
 
 
 if __name__ == '__main__':
-
     # async def main():
     #     async with client.conversation(timur, timeout=None) as conv:
     #         await send_inline_message(conv, 'asd', ['a', 'b'], 10)
