@@ -231,7 +231,81 @@ async def gettask(conv: Conversation) -> None:
 # @unbreakable_async_decorator
 # async def gettomorow(event) -> None:
 #     sender = (await event.get_chat()).id
-#     async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+#     async with client.conversation(sender, timeout=None, exclusive=not isboss(sender)) as conv:
+
+@unbreakable_async_decorator
+async def viewnote(conv: Conversation):
+    ind = id_to_ind[get_id(conv)]
+    msg = "Какую записку хотел бы посмотреть?\n"
+    i = -1
+    buttons = []
+    prev_message = None
+    while -i <= len(notes[users[ind].par]):
+        parse = users[notes[users[ind].par][i].student].name
+        parse = parse.split()
+        if len(parse) == 2:
+            parse = parse[0] + ' ' + parse[1][0] + '.'
+        else:
+            parse = ' '.join(parse)
+        msg += '{}. {} от {}\n'.format(-i, notes[users[ind].par][i].header, parse)
+        buttons.append(-i)
+        if len(buttons) == 10 or -i == len(notes[users[ind].par]):
+            buttons.append('Назад')
+            buttons.append("Вперед")
+            bts = [Button.text(str(el), single_use=True) for el in buttons]
+            bts = [bts[i : i + 4] for i in range(0, len(bts), 4)]
+            if prev_message is None:
+                prev_message = await conv.send_message(msg, buttons = bts)
+            else:
+                await prev_message.delete(revoke=True)
+                prev_message = await conv.send_message(msg, buttons = bts)
+            res = (await conv.get_response()).message
+            if res.isnumeric():
+                res = int(res)
+                if res not in buttons:
+                    await conv.send_message('Ban')
+                    return
+                await notes[users[ind].par][-res].show(conv)
+                return
+            elif res[0] == 'Н':
+                i = min(i + 19, -1)
+            else:
+                i -= 1
+            buttons = []
+            msg = ''
+        else:
+            i -= 1
+    await conv.send_message('Записки кончились')
+
+@unbreakable_async_decorator
+async def addnote(conv: Conversation):
+    ind = id_to_ind[await get_id(conv)]
+    await conv.send_message('Для начала озаглавь ее')
+    header = await conv.get_response()
+    header = header.message
+    note = await get_msg_group(conv, 'Хрш, а теперь скидывай саму записку. В конце, как всегда, /end')
+    notes[users[ind].par].append(Note(header, note, ind))
+    writefile(notes_storage, notes)
+    res = await send_inline_message(conv,
+                              "Готово. Хочешь отправить уведомление о ней всем одноклассникам?",
+                              ['Да', "Нет"],
+                              30,
+                              edited_message=["Ща сделаем", 'Оки'])
+    if res is not None and res == 0:
+        cant = []
+        for us in users:
+            if isinstance(us, Student) and us.par == users[ind].par:
+                try:
+                    await client.send_message(us.tg_id, 'Появилась новая записка от {}'.format(users[ind].name))
+                except:
+                    cant.append(us.name)
+        if cant:
+            message = 'Не смог отправить:\n'
+            for el in cant:
+                message += el + '\n'
+            await conv.send_message(message)
+        else:
+            await conv.send_message('Успешно отправлено всем')
 
 
 @unbreakable_async_decorator
@@ -292,7 +366,7 @@ async def addtask_student(conv: Conversation) -> None:
 async def addtask_teacher(conv: Conversation) -> None:
     teacher = users[id_to_ind[sender]]
     # teacher = User.Teacher(boss, 'Сеня', 'Сеней', ['11Б', "11В"], ['phy', 'ast'])
-    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+    async with client.conversation(sender, timeout=None, exclusive=not isboss(sender)) as conv:
         await conv.send_message('Каким классам хотите добавить домашнее задание?')
         classes = []
         while True:
@@ -328,7 +402,7 @@ async def addtask_teacher(conv: Conversation) -> None:
 @unbreakable_async_decorator
 async def getsol(event) -> None:
     sender = (await event.get_chat()).id
-    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+    async with client.conversation(sender, timeout=None, exclusive=not isboss(sender)) as conv:
         parr = users[id_to_ind[sender]].par
         subject = await get_subject(parr, conv)
         if not subject:
@@ -343,22 +417,29 @@ async def getsol(event) -> None:
 @unbreakable_async_decorator
 async def menu(event) -> None:
     sender = (await event.get_chat()).id
-    async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+    async with client.conversation(sender, timeout=None, exclusive=not isboss(sender)) as conv:
         if False and await is_teacher(event):
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=teacher_functions, max_per_row=1)
         else:
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=student_functions, max_per_row=1)
             if result == 0:
-                await gettask(conv)
+                # await tomorrow(conv)
+                pass
             elif result == 1:
+                await gettask(conv)
+            elif result == 2:
                 await addtask_student(conv)
+            elif result == 6:
+                await addnote(conv)
+            elif result == 7:
+                await viewnote(conv)
 
 @unbreakable_async_decorator
 async def addsol(event) -> None:
     sender = (await event.get_chat()).id
     if is_student(event):
         parr = users[id_to_ind[sender]].par
-        async with client.conversation(sender, timeout=None, exclusive=not (boss == sender)) as conv:
+        async with client.conversation(sender, timeout=None, exclusive=not isboss(sender)) as conv:
             subject = await get_subject(parr, conv)
             if not subject:
                 return
