@@ -12,6 +12,7 @@ from telethon.tl.types import InputMediaPoll, Poll, PollAnswer
 from telethon.tl.custom.conversation import Conversation
 from telethon.errors.common import AlreadyInConversationError
 from telethon.tl.custom.message import Message
+from telethon.tl.types import MessageMediaWebPage
 from telethon.hints import MessageLike
 from telethon.events.newmessage import NewMessage
 from random import shuffle
@@ -306,7 +307,7 @@ async def get_msg_group(conv: Conversation, msg: MessageLike) -> Union[List[Tupl
     task_part = await conv.get_response()
     messages = []
     while task_part.message != '/end':
-        messages.append((task_part.message, task_part.media))
+        messages.append((task_part.message, task_part.media if not isinstance(task_part.media, MessageMediaWebPage) else None))
         task_part = await conv.get_response()
     return messages
 

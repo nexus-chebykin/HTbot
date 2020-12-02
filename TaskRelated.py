@@ -7,6 +7,7 @@ async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = 
     '''
     Показывает задание на урок строго больше текущего
     '''
+    ind_to_be_showed = -1
     cur_date = datetime.date.today()
     for ind in range(len(home_tasks[parr][subject].history)):
         if home_tasks[parr][subject].history[ind].deadline > cur_date:
@@ -14,9 +15,12 @@ async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = 
             break
     else:
         await conv.send_message('*Пусто*')
-        return
-    current_pos = ind_to_be_showed + shift
-    to_be_awaited = await home_tasks[parr][subject].history[current_pos].show(conv)
+    if ind_to_be_showed != -1:
+        current_pos = ind_to_be_showed + shift
+        to_be_awaited = await home_tasks[parr][subject].history[current_pos].show(conv)
+    else:
+        to_be_awaited = None
+        current_pos = len(home_tasks[parr][subject].history) - 1 + shift
     if switch:
         # Поиск предыдущего задания
         buttons = []
@@ -64,7 +68,10 @@ async def addtask_student(conv: Conversation) -> None:
         if not home_tasks[parr][subject].history:
             pos = 0
         else:
-            pos = possible_days.index(home_tasks[parr][subject].history[-1].deadline)
+            try:
+                pos = possible_days.index(home_tasks[parr][subject].history[-1].deadline)
+            except:
+                pos = -1
             pos += 1
         for i in range(pos, day + 1):
             home_tasks[parr][subject].history.append(Task(possible_days[i]))
@@ -158,14 +165,14 @@ async def tomorrow(conv: Conversation) -> None:
         else:
             await conv.send_message("Первая группа")
             for el in home_tasks[par]['eng1'].history:
-                if el.deadline > today + datetime.timedelta(days=1):
+                if el.deadline == today + datetime.timedelta(days=1):
                     to_be_awaited.append(await el.show(conv))
                     break
             else:
                 await conv.send_message('*Пусто*')
             await conv.send_message("Вторая группа")
             for el in home_tasks[par]['eng2'].history:
-                if el.deadline > today + datetime.timedelta(days=1):
+                if el.deadline == today + datetime.timedelta(days=1):
                     to_be_awaited.append(await el.show(conv))
                     break
             else:
