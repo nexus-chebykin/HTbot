@@ -279,7 +279,7 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
     sent_message = await conv.send_message(message, buttons=markup)
     try:
         clicked_button = await conv.wait_event(button_event(conv.chat_id, sent_message.id), timeout=timeout)
-    except asyncio.exceptions.TimeoutError:
+    except asyncio.TimeoutError:
         for i in range(3, 0, -1):
             await sent_message.edit('Самоуничтожение через {}...'.format(i), buttons=None)
             await asyncio.sleep(1)

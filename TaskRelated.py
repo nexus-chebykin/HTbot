@@ -7,6 +7,7 @@ async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = 
     '''
     Показывает задание на урок строго больше текущего
     '''
+    # if shift == 0:
     ind_to_be_showed = -1
     cur_date = datetime.date.today()
     for ind in range(len(home_tasks[parr][subject].history)):
@@ -20,7 +21,9 @@ async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = 
         to_be_awaited = await home_tasks[parr][subject].history[current_pos].show(conv)
     else:
         to_be_awaited = None
-        current_pos = len(home_tasks[parr][subject].history) - 1 + shift
+        current_pos = len(home_tasks[parr][subject].history) - shift
+        for el in home_tasks[parr][subject].history:
+            print(el.deadline, el.messages)
     if switch:
         # Поиск предыдущего задания
         buttons = []
