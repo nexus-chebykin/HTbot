@@ -1,5 +1,5 @@
 from classesnfunctions import *
-
+from traceback import print_tb
 
 
 @unbreakable_async_decorator
@@ -7,23 +7,17 @@ async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = 
     '''
     Показывает задание на урок строго больше текущего
     '''
-    # if shift == 0:
+    for el in home_tasks[parr][subject].history:
+        print(el.deadline, type(el))
+    home_tasks[parr][subject].fill_until_day(datetime.date.today() + datetime.timedelta(rasp[parr].find_next(subject[:3])[0]), subject, parr)
     ind_to_be_showed = -1
     cur_date = datetime.date.today()
     for ind in range(len(home_tasks[parr][subject].history)):
         if home_tasks[parr][subject].history[ind].deadline > cur_date:
             ind_to_be_showed = ind
             break
-    else:
-        await conv.send_message('*Пусто*')
-    if ind_to_be_showed != -1:
-        current_pos = ind_to_be_showed + shift
-        to_be_awaited = await home_tasks[parr][subject].history[current_pos].show(conv)
-    else:
-        to_be_awaited = None
-        current_pos = len(home_tasks[parr][subject].history) - shift
-        for el in home_tasks[parr][subject].history:
-            print(el.deadline, el.messages)
+    current_pos = ind_to_be_showed + shift
+    to_be_awaited = await home_tasks[parr][subject].history[current_pos].show(conv)
     if switch:
         # Поиск предыдущего задания
         buttons = []
@@ -44,11 +38,9 @@ async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = 
                                   [str(option[1]) for option in buttons] + ['Нет'],
                                   timeout=180)
         if result is not None and result != len(buttons):
-            await show_task(parr, subject, conv, True, buttons[result][0] - ind_to_be_showed)
+            await show_task(parr, subject, conv, True, shift + (buttons[result][0] - current_pos))
     if to_be_awaited is not None:
         await to_be_awaited
-
-
 @unbreakable_async_decorator
 async def gettask(conv: Conversation) -> None:
     sender = (await conv.get_chat()).id
@@ -66,25 +58,12 @@ async def addtask_student(conv: Conversation) -> None:
     possible_days = [cur_day + datetime.timedelta(days=el) for el in possible_days]
     ui = [str(el)[5:] for el in possible_days]
     day = await send_inline_message(conv, 'На какой день?', ui, max_per_row=4)
-    pointer = 0
-    if (not home_tasks[parr][subject].history) or (home_tasks[parr][subject].history[-1].deadline < possible_days[day]):
-        if not home_tasks[parr][subject].history:
-            pos = 0
-        else:
-            try:
-                pos = possible_days.index(home_tasks[parr][subject].history[-1].deadline)
-            except:
-                pos = -1
-            pos += 1
-        for i in range(pos, day + 1):
-            home_tasks[parr][subject].history.append(Task(possible_days[i]))
-        pointer = -1
-    else:
-        for i in range(len(home_tasks[parr][subject].history)):
-            if home_tasks[parr][subject].history[i].deadline == possible_days[day]:
-                pointer = i
-                break
-    writefile(home_task_storage, home_tasks)
+    home_tasks[parr][subject].fill_until_day(possible_days[day], subject, parr)
+    pointer = -1
+    for i in range(1, len(home_tasks[parr][subject].history)):
+        if (home_tasks[parr][subject].history[-i].deadline == possible_days[day]):
+            pointer = -i
+            break
     to_be_awaited = await home_tasks[parr][subject].history[pointer].show(conv)
     result = await send_inline_message(conv, 'Выбери функцию', ['Заменить', 'Добавить', 'Ничего'])
     if result == 0:

@@ -191,6 +191,17 @@ class HomeTask():
     def __init__(self):
         self.history = []
 
+    def fill_until_day(self, day_until: datetime.date, subject: str, parr: str):
+        if not self.history:
+            self.history = [Task(datetime.date.today() + datetime.timedelta(days=rasp[parr].find_next(subject)[0]))]
+        cur_week_day = self.history[-1].deadline
+        cur_week_day = cur_week_day.weekday()
+        amount = day_until - self.history[-1].deadline
+        pos = len(self.history) - 1
+        for i in range(1, amount.days + 1):
+            if ((cur_week_day + i) % 7) != 6 and subject in rasp[parr].timetable[(cur_week_day + i) % 7].subjects:
+                self.history.append(Task(self.history[pos].deadline + datetime.timedelta(days=i)))
+        writefile(home_task_storage, home_tasks)
 
 class RaspDay():
     subjects: List[str]

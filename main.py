@@ -2,6 +2,8 @@
 from SolRelated import *
 from NoteRelated import *
 from TaskRelated import *
+from telethon.tl.types import MessageMediaDice
+from traceback import *
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.INFO)
@@ -170,6 +172,24 @@ async def stick(event):
     except BaseException as s:
         print(s)
 
+@client.on(events.NewMessage(pattern='/exitall'))
+async def aba(event):
+    try:
+        sender = await get_id(event)
+        to_exit = []
+        for el in client._conversations[sender]:
+            el.cancel()
+            to_exit.append(el)
+        for el in to_exit:
+            await el.__aexit__(None, None, None)
+        await client.send_message(sender, 'Готово!')
+    except:
+        await client.send_message(sender, 'Возможно, не получилось')
+
+# @client.on(events.NewMessage())
+# async def fn(event):
+#     sender = await get_id(event)
+#     await client.send_message(sender, message=event.message.message, file=event.message.media)
 
 @client.on(events.NewMessage(pattern='/menu', func=is_student))
 @unbreakable_async_decorator
