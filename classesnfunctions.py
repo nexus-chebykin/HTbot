@@ -192,6 +192,8 @@ class HomeTask():
         self.history = []
 
     def fill_until_day(self, day_until: datetime.date, subject: str, parr: str):
+        if subject == 'eng1' or subject == 'eng2':
+            subject = 'eng'
         if not self.history:
             self.history = [Task(datetime.date.today() + datetime.timedelta(days=rasp[parr].find_next(subject)[0]))]
         cur_week_day = self.history[-1].deadline
@@ -219,6 +221,8 @@ class Rasp():
     def find_next(self, subject, amount=1, today=False):
         '''Возвращает первые amount сдвигов до дней,
         в которые будет предмет subject, включая текущий, если today'''
+        if subject == 'eng1' or subject == 'eng2':
+            subject = 'eng'
         cur_week_day = datetime.date.today()
         cur_week_day = cur_week_day.weekday()
         ans = []

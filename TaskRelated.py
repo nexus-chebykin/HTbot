@@ -7,9 +7,7 @@ async def show_task(parr: str, subject: str, conv: Conversation, switch: bool = 
     '''
     Показывает задание на урок строго больше текущего
     '''
-    for el in home_tasks[parr][subject].history:
-        print(el.deadline, type(el))
-    home_tasks[parr][subject].fill_until_day(datetime.date.today() + datetime.timedelta(rasp[parr].find_next(subject[:3])[0]), subject, parr)
+    home_tasks[parr][subject].fill_until_day(datetime.date.today() + datetime.timedelta(rasp[parr].find_next(subject)[0]), subject, parr)
     ind_to_be_showed = -1
     cur_date = datetime.date.today()
     for ind in range(len(home_tasks[parr][subject].history)):
@@ -53,17 +51,23 @@ async def addtask_student(conv: Conversation) -> None:
     sender = (await conv.get_chat()).id
     parr = users[id_to_ind[sender]].par
     subject = await get_subject(parr, conv)
-    possible_days = rasp[parr].find_next(subject[:3], 4) # ОСТОРОЖНО
+    possible_days = rasp[parr].find_next(subject, 4) # ОСТОРОЖНО
     cur_day = datetime.date.today()
     possible_days = [cur_day + datetime.timedelta(days=el) for el in possible_days]
     ui = [str(el)[5:] for el in possible_days]
     day = await send_inline_message(conv, 'На какой день?', ui, max_per_row=4)
     home_tasks[parr][subject].fill_until_day(possible_days[day], subject, parr)
     pointer = -1
+    print(possible_days[day], 'day_until')
+    for el in home_tasks[parr][subject].history:
+        print(el.deadline)
     for i in range(1, len(home_tasks[parr][subject].history)):
         if (home_tasks[parr][subject].history[-i].deadline == possible_days[day]):
             pointer = -i
+            print(home_tasks[parr][subject].history[-i].deadline, -i)
             break
+    else:
+        print('not_found')
     to_be_awaited = await home_tasks[parr][subject].history[pointer].show(conv)
     result = await send_inline_message(conv, 'Выбери функцию', ['Заменить', 'Добавить', 'Ничего'])
     if result == 0:

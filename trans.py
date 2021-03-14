@@ -11,9 +11,9 @@ to_us = ['pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/d
             \
                'pscp.exe -pw 123456 semen@192.168.1.110:/home/semen/Desktop/tg/HTbot/bot.session C:\\Users\\Сеня\\Desktop\\python\\tg\\HTbot']
 to_pi = ['pscp.exe -P 22 -r -pw nwshnpwx! C:\\Users\\Simon\\python\\tg\\HTbot\\* root@192.168.1.107:/home/pi/telegram/HTbot']
-to_us_tasks = ['pscp.exe -P 22 -pw nwshnpwx! root@192.168.1.107:/home/pi/telegram/HTbot/bot.session C:\\Users\\Simon\\python\\tg\\HTbot',
-               'pscp.exe -P 22 -pw nwshnpwx! root@192.168.1.107:/home/pi/telegram/HTbot/databases/* C:\\Users\\Simon\\python\\tg\\HTbot\\databases']
+to_us_tasks = ['pscp.exe -P 22 -pw nwshnpwx! root@192.168.1.115:/home/pi/telegram/HTbot/bot.session C:\\Users\\Simon\\python\\tg\\HTbot',
+               'pscp.exe -P 22 -pw nwshnpwx! root@192.168.1.115:/home/pi/telegram/HTbot/databases/* C:\\Users\\Simon\\python\\tg\\HTbot\\databases']
 
 hotfix = to_us_tasks + to_pi
-for el in hotfix:
+for el in to_us_tasks:
     subprocess.call(el)
