@@ -2,10 +2,12 @@
 from SolRelated import *
 from NoteRelated import *
 from TaskRelated import *
-
+from telethon.tl.types import MessageMediaDice
+from traceback import *
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.INFO)
+
 
 @unbreakable_async_decorator
 async def register_student(conv: Conversation, sender: int) -> None:
@@ -45,11 +47,12 @@ async def register_student(conv: Conversation, sender: int) -> None:
         writefile(id_to_ind_storage, id_to_ind, max_ind)
         writefile(users_storage, users)
         await conv.send_message(success_sign_in)
-    except Exception as s:
+    except BaseException as s:
         print(s)
         await conv.send_message(something_wrong)
 
-@unbreakable_async_decorator
+
+# @unbreakable_async_decorator
 async def register_teacher(conv: Conversation, sender: int) -> None:
     global max_ind, current_review
     s = await client.get_entity(sender)
@@ -69,9 +72,10 @@ async def register_teacher(conv: Conversation, sender: int) -> None:
         subjects = []
         await conv.send_message(
             'А какие предметы ведете? (Если больше 1, то напишите /another после очередного выбора, иначе /end)')
+        pt = list(home_tasks[classes[0]].keys())
         while True:
-            t = await send_inline_message(conv, 'Какие?', list(home_tasks[classes[0]].keys()))
-            subjects.append(t.strip())
+            t = await send_inline_message(conv, 'Какие?', pt)
+            subjects.append(pt[t])
             p = await conv.get_response()
             if p.message == '/end':
                 break
@@ -102,19 +106,21 @@ async def register_teacher(conv: Conversation, sender: int) -> None:
         await conv.send_message(something_wrong)
         return
 
+
 @client.on(events.NewMessage(pattern='/start'))
 @unbreakable_async_decorator
 async def new_user(event: NewMessage.Event) -> None:
-    sender = (await event.get_chat()).id
+    sender = await get_id(event)
     if sender in id_to_ind:
         await client.send_message(sender, user_already_signed_in)
     else:
-        async with client.conversation(sender, timeout=None, exclusive=not (sender == boss)) as conv:
+        async with client.conversation(sender, timeout=None, exclusive=not isboss(sender)) as conv:
             ans = await send_inline_message(conv, 'Ты ученик или учитель?', ['Ученик', 'Учитель'])
             if ans == 'Ученик':
                 await register_student(conv, sender)
             else:
                 await register_teacher(conv, sender)
+
 
 @client.on(events.NewMessage(pattern='/accept', chats=boss))
 @unbreakable_async_decorator
@@ -126,6 +132,7 @@ async def ac(event):
         accepted.add(int(resp.text))
         pending_review.discard(int(resp.text))
         await conv.send_message('OK')
+
 
 @client.on(events.NewMessage(pattern='/decline', chats=boss))
 @unbreakable_async_decorator
@@ -141,6 +148,7 @@ async def dec(event):
 @unbreakable_async_decorator
 async def help_abbv(conv):
     await conv.send_message(abbvhelp_student)
+
 
 @unbreakable_async_decorator
 async def helper_student(conv: Conversation):
@@ -164,37 +172,68 @@ async def stick(event):
     except BaseException as s:
         print(s)
 
+@client.on(events.NewMessage(pattern='/exitall'))
+async def aba(event):
+    try:
+        sender = await get_id(event)
+        to_exit = []
+        for el in client._conversations[sender]:
+            el.cancel()
+            to_exit.append(el)
+        for el in to_exit:
+            await el.__aexit__(None, None, None)
+        await client.send_message(sender, 'Готово!')
+    except:
+        await client.send_message(sender, 'Возможно, не получилось')
+
+# @client.on(events.NewMessage())
+# async def fn(event):
+#     sender = await get_id(event)
+#     await client.send_message(sender, message=event.message.message, file=event.message.media)
 
 @client.on(events.NewMessage(pattern='/menu', func=is_student))
 @unbreakable_async_decorator
 async def menu(event) -> None:
     sender = await get_id(event)
     async with client.conversation(sender, timeout=None, exclusive=not isboss(sender)) as conv:
-        if False and await is_teacher(event):
+        if await is_teacher(event) and not isboss(sender):
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=teacher_functions, max_per_row=1)
+            if result == 0:
+                await addnote_teacher(conv)
+            elif result == 1:
+                await mynotes_teacher(conv)
+            elif result == 2:
+                await addtask_teacher(conv)
+            elif result == 3:
+                await conv.send_message(help_str_teacher)
         else:
             result = await send_inline_message(conv, 'Choose your Destiny', buttons=student_functions, max_per_row=1)
+            await my_log(student_functions[result] + ' ' + users[id_to_ind[sender]].name)
             if result == 0:
-                # await tomorrow(conv)
-                pass
+                await tomorrow(conv)
             elif result == 1:
                 await gettask(conv)
             elif result == 2:
                 await addtask_student(conv)
             elif result == 3:
-                await show_sol(conv)
-                pass
+                await getsol(conv)
             elif result == 4:
-                # await add_sol(conv)
-                pass
+                await add_sol(conv)
             elif result == 5:
-                await abbvhelp_student(conv)
+                await conv.send_message(abbvhelp_student)
             elif result == 6:
                 await addnote(conv)
             elif result == 7:
                 await viewnote(conv)
             else:
-                await helper_student(conv)
+                result = await send_inline_message(conv, 'Что на этот раз?', buttons=addition, max_per_row=1)
+                if result == 1:
+                    await helper_student(conv)
+                elif result == 0:
+                    await mynotes(conv)
+                elif result == 2:
+                    await conv.send_message("У тебя {} ♂cum♂coin".format(users[id_to_ind[sender]].money))
+        await conv.send_message('/menu')
 
 async def main():
     print('done')

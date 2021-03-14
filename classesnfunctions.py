@@ -1,6 +1,9 @@
+# coding=UTF-8
+
 import datetime
 import asyncio
 import datetime
+
 import traceback
 from string_constants import *
 from telethon import TelegramClient
@@ -9,6 +12,7 @@ from telethon.tl.types import InputMediaPoll, Poll, PollAnswer
 from telethon.tl.custom.conversation import Conversation
 from telethon.errors.common import AlreadyInConversationError
 from telethon.tl.custom.message import Message
+from telethon.tl.types import MessageMediaWebPage
 from telethon.hints import MessageLike
 from telethon.events.newmessage import NewMessage
 from random import shuffle
@@ -17,6 +21,7 @@ from boot import *
 from pickle import load, dump
 from typing import *
 import time
+
 
 def readfile(file: str, single: bool) -> Union[Any, List[Any]]:
     f = open(file, 'br')
@@ -40,18 +45,24 @@ def writefile(file: str, *data: Any) -> None:
         dump(el, f)
     f.close()
 
+async def my_log(*data: Any,) -> None:
+    if not Test:
+        await client.send_message('https://t.me/joinchat/Dmz9yxzt7_5BzdSj5q8-cg', '\n'.join(list(map(str, data))))
+
 
 async def is_student(event):
-    return (await event.get_chat()).id in id_to_ind and isinstance(users[id_to_ind[(await event.get_chat()).id]], Student)
+    return (await event.get_chat()).id in id_to_ind and isinstance(users[id_to_ind[(await event.get_chat()).id]],
+                                                                   Student)
 
 
 async def is_teacher(event):
-    return ((await event.get_chat()).id in id_to_ind and isinstance(users[id_to_ind[(await event.get_chat()).id]],
-                                                              Teacher)) or (await event.get_chat()).id == boss
+    tmp = (await event.get_chat()).id
+    return tmp in id_to_ind and (isinstance(users[id_to_ind[tmp]], Teacher)) or isboss(tmp)
 
 
 async def get_id(event_or_conv) -> int:
     return (await event_or_conv.get_chat()).id
+
 
 class User():
     tg_id: int
@@ -63,6 +74,13 @@ class User():
         self.name = name
         self.name_by = name_by
 
+    def __str__(self):
+        return '''{}(
+        id in tg: {}
+        name: {}
+        name_by: {}
+        )'''.format(self.__class__.__name__, self.tg_id, self.name, self.name_by)
+
 
 class Student(User):
     par: str
@@ -71,7 +89,11 @@ class Student(User):
     def __init__(self, tg_id, name, name_by, par='11В'):
         super().__init__(tg_id, name, name_by)
         self.par = par
-        self.money = 30
+        self.money = 31
+
+    def __str__(self):
+        return super().__str__()[:-1] + '''parralel: {}
+        money: {})'''.format(self.par, self.money)
 
 
 class Teacher(User):
@@ -82,6 +104,13 @@ class Teacher(User):
         super().__init__(tg_id, name, name_by)
         self.classes = list(classes[:])
         self.subjects = list(subjects[:])
+
+    def __str__(self):
+        classes = ' '.join(self.classes)
+        subjects = ' '.join(self.subjects)
+        return super().__str__()[:-1] + '''classes: {}
+        subjects: {})'''.format(classes, subjects)
+
 
 class MsgGroup():
     messages: List[Tuple[Any, Any]]
@@ -101,29 +130,35 @@ def unbreakable_async_decorator(func):
             return result
         except BaseException as s:
             await client.send_message(boss, str(s) + ' ' + func.__name__)
+            try:
+                await client.send_message(boss, users[id_to_ind[await(get_id(args[0]))]].name)
+            except:
+                pass
             if isinstance(s, AlreadyInConversationError):
-                if isinstance(args[0], NewMessage.Event):
-                    await client.send_message(args[0].message.from_id, "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
+                await client.send_message(await get_id(args[0]),
+                                          "Дурачок, ты уже заходил в какую-то функцию и не вышел!\n😡😡😡😡😡")
+
     return wrapper
     # return func
-class Note(MsgGroup):
 
+
+class Note(MsgGroup):
     header: str
 
     def __init__(self, header='', msg=(), student=0, timestamp=datetime.datetime.now()):
         super().__init__(msg, student, timestamp)
         self.header = header
+
     @unbreakable_async_decorator
     async def show(self, conv: Conversation):
         for el in self.messages:
             await conv.send_message(el[0], file=el[1])
 
 
-
 class Task(MsgGroup):
     deadline: datetime.date
 
-    def __init__(self,  deadline, msg=(), student=0, timestamp=datetime.date.today()):
+    def __init__(self, deadline: datetime.date, msg=(), student=0, timestamp=datetime.date.today()):
         super().__init__(msg, student, timestamp)
         self.deadline = deadline
 
@@ -134,20 +169,21 @@ class Task(MsgGroup):
             for el in self.messages:
                 await conv.send_message(message=el[0], file=el[1])
             if ask_for_money:
-                 return client.loop.create_task(transuction(conv,
-                                                      id_to_ind[(await conv.get_chat()).id],
-                                                      self.student,
-                                                      "Последний раз оно было изменено {} {}".format(
-                                                          users[self.student].name_by,
-                                                          str(self.timestamp)[:-10]),
-                                                )
-                                          )
+                return client.loop.create_task(transuction(conv,
+                                                           id_to_ind[(await conv.get_chat()).id],
+                                                           self.student,
+                                                           "Последний раз оно было изменено {} {}".format(
+                                                               users[self.student].name_by,
+                                                               str(self.timestamp)[:-10]),
+                                                           )
+                                               )
             else:
                 await conv.send_message("Последний раз оно было изменено {} {}".format(
-                                                    users[self.student].name_by,
-                                                    str(self.timestamp)[:-10]))
+                    users[self.student].name_by,
+                    str(self.timestamp)[:-10]))
         else:
             await conv.send_message('*Пусто*')
+
 
 class HomeTask():
     history: List[Task]
@@ -155,11 +191,26 @@ class HomeTask():
     def __init__(self):
         self.history = []
 
+    def fill_until_day(self, day_until: datetime.date, subject: str, parr: str):
+        if subject == 'eng1' or subject == 'eng2':
+            subject = 'eng'
+        if not self.history:
+            self.history = [Task(datetime.date.today() + datetime.timedelta(days=rasp[parr].find_next(subject)[0]))]
+        cur_week_day = self.history[-1].deadline
+        cur_week_day = cur_week_day.weekday()
+        amount = day_until - self.history[-1].deadline
+        pos = len(self.history) - 1
+        for i in range(1, amount.days + 1):
+            if ((cur_week_day + i) % 7) != 6 and subject in rasp[parr].timetable[(cur_week_day + i) % 7].subjects:
+                self.history.append(Task(self.history[pos].deadline + datetime.timedelta(days=i)))
+        writefile(home_task_storage, home_tasks)
+
 class RaspDay():
     subjects: List[str]
 
     def __init__(self, data: List[str]):
         self.subjects = data[:]
+
 
 class Rasp():
     timetable: List[RaspDay] = []
@@ -167,9 +218,11 @@ class Rasp():
     def __init__(self, rasp: List[RaspDay]):
         self.timetable = rasp[:]
 
-    def find_next(self, subject, amount = 1, today = False):
+    def find_next(self, subject, amount=1, today=False):
         '''Возвращает первые amount сдвигов до дней,
         в которые будет предмет subject, включая текущий, если today'''
+        if subject == 'eng1' or subject == 'eng2':
+            subject = 'eng'
         cur_week_day = datetime.date.today()
         cur_week_day = cur_week_day.weekday()
         ans = []
@@ -183,28 +236,34 @@ class Rasp():
 def button_event(user, msg) -> events.CallbackQuery:
     return events.CallbackQuery(func=lambda e: e.sender_id == user and e.query.msg_id == msg)
 
+
 def isboss(tg_id):
-    return tg_id == boss or tg_id == timur
+    return tg_id == boss #or tg_id == timur
+
 
 async def is_boss(event):
     return isboss(await get_id(event))
 
+
 @unbreakable_async_decorator
 async def transuction(conv, fro, to, msg):
     res = await send_inline_message(conv, msg, ['Кинуть ему монетку!', 'Я жмот'],
-                                        timeout=30,
-                                        edited_message=['{} очень рад(а)'.format(
-                                            users[fro].name),
-                                            'Чел...'])
-    if res == 1:
+                                    timeout=30,
+                                    edited_message=['{} очень рад(а)'.format(
+                                        users[to].name),
+                                        'Чел...'])
+    if res == 0:
         if users[fro].money == 0:
             await conv.send_message("Ты на мели")
         else:
             users[fro].money -= 1
             users[to].money += 1
 
+
 @unbreakable_async_decorator
-async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str], timeout: Optional[float] = None, edited_message: Optional[List[str]] = None, max_per_row: Optional[int] = 3) -> Optional[int]:
+async def send_inline_message(conv: Conversation, message: MessageLike, buttons: Sequence[str],
+                              timeout: Optional[float] = None, edited_message: Optional[List[str]] = None,
+                              max_per_row: Optional[int] = 3) -> Optional[int]:
     '''
     Отправляет сообщение с кнопками в чат и ждет ответа на него
 
@@ -235,7 +294,7 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
     sent_message = await conv.send_message(message, buttons=markup)
     try:
         clicked_button = await conv.wait_event(button_event(conv.chat_id, sent_message.id), timeout=timeout)
-    except asyncio.exceptions.TimeoutError:
+    except asyncio.TimeoutError:
         for i in range(3, 0, -1):
             await sent_message.edit('Самоуничтожение через {}...'.format(i), buttons=None)
             await asyncio.sleep(1)
@@ -249,11 +308,13 @@ async def send_inline_message(conv: Conversation, message: MessageLike, buttons:
         await sent_message.edit('Ты выбрал {}'.format(buttons[pos].text), buttons=None)
     return pos
 
+
 @unbreakable_async_decorator
 async def get_subject(parr, conv) -> str:
     tmp = list(home_tasks[parr].keys())
     res = await send_inline_message(conv, which_subject, tmp)
     return tmp[res]
+
 
 @unbreakable_async_decorator
 async def get_msg_group(conv: Conversation, msg: MessageLike) -> Union[List[Tuple[Any, Any]], int]:
@@ -261,17 +322,21 @@ async def get_msg_group(conv: Conversation, msg: MessageLike) -> Union[List[Tupl
     task_part = await conv.get_response()
     messages = []
     while task_part.message != '/end':
-        messages.append((task_part.message, task_part.media))
-        print(task_part.media)
+        messages.append((task_part.message, task_part.media if not isinstance(task_part.media, MessageMediaWebPage) else None))
         task_part = await conv.get_response()
     return messages
+
+
 
 home_tasks: Dict[str, Dict[str, HomeTask]] = readfile(home_task_storage, True)
 '''Словарь: Параллель -> Словарь: предмет -> задание'''
 solutions: Dict[str, Dict[str, MsgGroup]] = readfile(solution_storage, True)
+# for el in solutions:
+#     for subj in solutions[el]:
+#         solutions[el][subj] = None
+# writefile(solution_storage, solutions)
 '''Словарь: Параллель -> Словарь: предмет -> решение'''
 notes: Dict[str, List[Note]] = readfile(notes_storage, True)
-notes['11В'] = [Note(str(i + 1), [(str(i), None)], i) for i in range(20)]
 rasp: Dict[str, Rasp] = readfile(rasp_storage, True)
 '''Словарь: Параллель -> расписание'''
 tmp = readfile(id_to_ind_storage, False)
@@ -285,14 +350,20 @@ stickers: Dict[str, Any] = readfile(stickers_storage, True)
 '''Словарь: название -> стикер'''
 pending_review = set()
 accepted = set()
-current_review = 1
+# for el in notes:
+#     notes[el].clear()
+# writefile(notes_storage, notes)
+# for par in home_tasks:
+#     for subj in home_tasks[par]:
+#         home_tasks[par][subj].history.clear()
+# writefile(home_task_storage, home_tasks)
 
+current_review = 1
 
 if __name__ == '__main__':
     # async def main():
     #     async with client.conversation(timur, timeout=None) as conv:
     #         await send_inline_message(conv, 'asd', ['a', 'b'], 10)
-
 
     with client:
         client.run_until_disconnected()
